@@ -1,0 +1,490 @@
+{
+  "declarations": [
+    {
+      "name": "G",
+      "ranks": [
+        {
+          "name": "S",
+          "shape": "|V|",
+          "coord_set": null,
+          "iterative": false
+        },
+        {
+          "name": "D",
+          "shape": "|V|",
+          "coord_set": null,
+          "iterative": false
+        }
+      ],
+      "data_type": {
+        "kind": "builtin",
+        "name": "int"
+      },
+      "empty_value": 0,
+      "value": null
+    },
+    {
+      "name": "F",
+      "ranks": [
+        {
+          "name": "I",
+          "shape": null,
+          "coord_set": null,
+          "iterative": false
+        },
+        {
+          "name": "S",
+          "shape": "|V|",
+          "coord_set": null,
+          "iterative": false
+        }
+      ],
+      "data_type": {
+        "kind": "builtin",
+        "name": "int"
+      },
+      "empty_value": "inf",
+      "value": null
+    },
+    {
+      "name": "P",
+      "ranks": [
+        {
+          "name": "I",
+          "shape": null,
+          "coord_set": null,
+          "iterative": false
+        },
+        {
+          "name": "D",
+          "shape": "|V|",
+          "coord_set": null,
+          "iterative": false
+        }
+      ],
+      "data_type": {
+        "kind": "builtin",
+        "name": "bool"
+      },
+      "empty_value": false,
+      "value": null
+    },
+    {
+      "name": "T",
+      "ranks": [
+        {
+          "name": "I",
+          "shape": null,
+          "coord_set": null,
+          "iterative": false
+        },
+        {
+          "name": "D",
+          "shape": "|V|",
+          "coord_set": null,
+          "iterative": false
+        }
+      ],
+      "data_type": {
+        "kind": "builtin",
+        "name": "int"
+      },
+      "empty_value": "inf",
+      "value": null
+    },
+    {
+      "name": "Lit_0",
+      "ranks": [],
+      "data_type": {
+        "kind": "builtin",
+        "name": "int"
+      },
+      "empty_value": null,
+      "value": 0
+    },
+    {
+      "name": "Lit_True",
+      "ranks": [],
+      "data_type": {
+        "kind": "builtin",
+        "name": "bool"
+      },
+      "empty_value": null,
+      "value": true
+    }
+  ],
+  "initialization": {
+    "einsums": [
+      {
+        "output_tensor": "F",
+        "output_ranks": [
+          {
+            "kind": "literal",
+            "value": 0
+          },
+          {
+            "kind": "var",
+            "name": "s"
+          }
+        ],
+        "expression": {
+          "kind": "input",
+          "proj": {
+            "tensor": "Lit_0",
+            "ranks": []
+          }
+        },
+        "specs": [],
+        "predicates": [
+          {
+            "kind": "set_membership",
+            "member": {
+              "kind": "var",
+              "name": "s"
+            },
+            "coord_set": {
+              "kind": "named",
+              "name": "id"
+            },
+            "negated": false
+          }
+        ]
+      },
+      {
+        "output_tensor": "P",
+        "output_ranks": [
+          {
+            "kind": "literal",
+            "value": 0
+          },
+          {
+            "kind": "var",
+            "name": "d"
+          }
+        ],
+        "expression": {
+          "kind": "input",
+          "proj": {
+            "tensor": "Lit_True",
+            "ranks": []
+          }
+        },
+        "specs": [],
+        "predicates": [
+          {
+            "kind": "set_membership",
+            "member": {
+              "kind": "var",
+              "name": "d"
+            },
+            "coord_set": {
+              "kind": "named",
+              "name": "id"
+            },
+            "negated": false
+          }
+        ]
+      }
+    ]
+  },
+  "main_edge": {
+    "cascade": {
+      "einsums": [
+        {
+          "output_tensor": "T",
+          "output_ranks": [
+            {
+              "kind": "var",
+              "name": "i"
+            },
+            {
+              "kind": "var",
+              "name": "d"
+            }
+          ],
+          "expression": {
+            "kind": "binary",
+            "label": 1,
+            "lhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "G",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "s"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "d"
+                  }
+                ]
+              }
+            },
+            "rhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "F",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "i"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "s"
+                  }
+                ]
+              }
+            }
+          },
+          "specs": [
+            {
+              "kind": "map",
+              "label": 1,
+              "rank_list": [
+                "s"
+              ],
+              "compute_op": {
+                "kind": "builtin",
+                "symbol": "+"
+              },
+              "merge_op": {
+                "kind": "builtin",
+                "symbol": "intersect"
+              }
+            },
+            {
+              "kind": "reduce",
+              "label": 1,
+              "rank_list": [
+                "s"
+              ],
+              "compute_op": {
+                "kind": "user_defined",
+                "name": "ANY"
+              },
+              "merge_op": {
+                "kind": "builtin",
+                "symbol": "union"
+              }
+            }
+          ],
+          "predicates": []
+        },
+        {
+          "output_tensor": "F",
+          "output_ranks": [
+            {
+              "kind": "arith",
+              "op": "+",
+              "lhs": {
+                "kind": "var",
+                "name": "i"
+              },
+              "rhs": {
+                "kind": "literal",
+                "value": 1
+              }
+            },
+            {
+              "kind": "var",
+              "name": "d"
+            }
+          ],
+          "expression": {
+            "kind": "binary",
+            "label": 1,
+            "lhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "T",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "i"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "d"
+                  }
+                ]
+              }
+            },
+            "rhs": {
+              "kind": "unary",
+              "op": {
+                "kind": "builtin",
+                "symbol": "not"
+              },
+              "operand": {
+                "kind": "input",
+                "proj": {
+                  "tensor": "P",
+                  "ranks": [
+                    {
+                      "kind": "var",
+                      "name": "i"
+                    },
+                    {
+                      "kind": "var",
+                      "name": "d"
+                    }
+                  ]
+                }
+              },
+              "merge_op": {
+                "kind": "builtin",
+                "symbol": "not_left"
+              }
+            }
+          },
+          "specs": [
+            {
+              "kind": "map",
+              "label": 1,
+              "rank_list": [
+                "d"
+              ],
+              "compute_op": {
+                "kind": "user_defined",
+                "name": "take_left"
+              },
+              "merge_op": {
+                "kind": "builtin",
+                "symbol": "intersect"
+              }
+            }
+          ],
+          "predicates": []
+        },
+        {
+          "output_tensor": "P",
+          "output_ranks": [
+            {
+              "kind": "arith",
+              "op": "+",
+              "lhs": {
+                "kind": "var",
+                "name": "i"
+              },
+              "rhs": {
+                "kind": "literal",
+                "value": 1
+              }
+            },
+            {
+              "kind": "var",
+              "name": "d"
+            }
+          ],
+          "expression": {
+            "kind": "binary",
+            "label": 1,
+            "lhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "P",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "i"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "d"
+                  }
+                ]
+              }
+            },
+            "rhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "F",
+                "ranks": [
+                  {
+                    "kind": "arith",
+                    "op": "+",
+                    "lhs": {
+                      "kind": "var",
+                      "name": "i"
+                    },
+                    "rhs": {
+                      "kind": "literal",
+                      "value": 1
+                    }
+                  },
+                  {
+                    "kind": "var",
+                    "name": "d"
+                  }
+                ]
+              }
+            }
+          },
+          "specs": [
+            {
+              "kind": "map",
+              "label": 1,
+              "rank_list": [
+                "d"
+              ],
+              "compute_op": {
+                "kind": "user_defined",
+                "name": "OR"
+              },
+              "merge_op": {
+                "kind": "builtin",
+                "symbol": "union"
+              }
+            }
+          ],
+          "predicates": []
+        }
+      ],
+      "stopping_conditions": [
+        {
+          "rank_variable": "i",
+          "predicate": {
+            "kind": "comparison",
+            "lhs": {
+              "kind": "property_app",
+              "name": "occupancy",
+              "pinned_rank_variables": [
+                "i"
+              ],
+              "operands": [
+                {
+                  "tensor": "F",
+                  "ranks": [
+                    {
+                      "kind": "arith",
+                      "op": "+",
+                      "lhs": {
+                        "kind": "var",
+                        "name": "i"
+                      },
+                      "rhs": {
+                        "kind": "literal",
+                        "value": 1
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "op": "==",
+            "rhs": {
+              "kind": "tensor_value",
+              "proj": {
+                "tensor": "Lit_0",
+                "ranks": []
+              }
+            }
+          }
+        }
+      ],
+      "iterative_rank": null
+    }
+  }
+}

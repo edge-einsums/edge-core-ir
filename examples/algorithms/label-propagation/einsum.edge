@@ -1,0 +1,14 @@
+# Label propagation (max-label; computes connected components) -- ASCII surface form of einsum.md
+# from convos with Claude AI
+
+- Tensors
+G^{R = N, C = N} -> float, empty = 0.0
+L^{I, R = N}     -> float, empty = 0.0
+
+- Initialization
+G   -> <user-specified>          # symmetric, reflexive adjacency (1.0 edge weights)
+L_0 -> <user-specified>          # unique per-vertex labels, label(v) = v + 1; ALL vertices (no source set)
+
+- Extended Einsum
+L_{i+1, d} = G_{s, d} . L_{i, s}  :: /\_s *(∩) \/_s max(∪)
+<> : L_{i+1} == L_i

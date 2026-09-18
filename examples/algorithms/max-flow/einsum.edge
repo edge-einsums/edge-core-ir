@@ -1,0 +1,115 @@
+# Max-flow (push-relabel, full-edge) -- ASCII surface form of einsum.md
+#
+# Source of truth: Push_Relabel_Max_Flow.ipynb in the EDGE tutorial zoo
+# This artifact was rewritten to match the corrected tutorial cascade. See
+# CHANGES.md for what moved relative to the previous version and why.
+#
+# Semantic assumption used throughout: a stored value equal to a tensor's
+# `empty` value is treated as ABSENT. This is what lets saturated residual
+# edges (R = 0) drop out of intersect merges without an explicit positivity
+# guard.
+
+- Tensors
+G^{U = |V|, V = |V|}    -> integer, empty = 0
+C^{U = |V|, V = |V|}    -> integer, empty = 0
+F^{I, U = |V|, V = |V|} -> integer, empty = 0
+R^{I, U = |V|, V = |V|} -> integer, empty = 0
+E^{I, U = |V|}          -> integer, empty = 0
+D^{I, U = |V|}          -> integer, empty = +inf
+Act^{I, U = |V|}        -> Boolean, empty = False
+S^{U = |V|}             -> Boolean, empty = False
+T^{U = |V|}             -> Boolean, empty = False
+
+# Cascade intermediates. The tutorial's Tensors block declares only the nine
+# above, so these empty values were chosen here. Two groups matter:
+#
+#   - NeiLbl, MinNeiLbl and NewD hold HEIGHTS, so they take D's empty value
+#     of +inf. Declaring them 0 would drop every height-0 neighbour before
+#     E22's min ever sees it -- the same trap as declaring D empty = 0, one
+#     step later in the cascade.
+#   - FS, Delta, InPush and OutPush hold flow quantities, where 0 and absent
+#     genuinely coincide.
+FS^{I, U = |V|, V = |V|}        -> integer, empty = 0
+NST^{U = |V|}                   -> Boolean, empty = False
+ActR^{I, U = |V|, V = |V|}      -> Boolean, empty = False
+Lbl^{I, U = |V|, V = |V|}       -> Boolean, empty = False
+Adm^{I, U = |V|, V = |V|}       -> Boolean, empty = False
+PushCand^{I, U = |V|, V = |V|}  -> Boolean, empty = False
+Delta^{I, U = |V|, V = |V|}     -> integer, empty = 0
+InPush^{I, U = |V|}             -> integer, empty = 0
+OutPush^{I, U = |V|}            -> integer, empty = 0
+HasAdm^{I, U = |V|}             -> Boolean, empty = False
+Rel^{I, U = |V|}                -> Boolean, empty = False
+NeiLbl^{I, U = |V|, V = |V|}    -> integer, empty = +inf
+MinNeiLbl^{I, U = |V|}          -> integer, empty = +inf
+NewD^{I, U = |V|}               -> integer, empty = +inf
+
+- Initializations        # s = source vertex, t = sink vertex
+F_{0, u, v}      = 0
+E_{0, u}         = 0
+D_{1, u}         = 0
+D_{1, u : u = s} = |V|
+S_{u : u = s}    = True
+T_{u : u = t}    = True
+
+- Extended Einsums
+# E01: preflow to every edge out of the source: f(s,v) = c(s,v)
+FS_{1, u, v} = S_u . C_{u, v} :: /\ *(∩)
+# E02: record the negative flow on the reverse edge: f(v,s) = -c(s,v)
+F_{1, u, v}  = FS_{1, u, v} . FS_{1, v, u} :: /\ -(∪)
+# E03: excess is net inflow; outflow is already stored as negative entries
+E_{1, u}     = F_{1, v, u} :: \/ +(∪)
+# E04: residual from the source is spent; the reverse edge gains capacity
+R_{1, u, v} = cases:
+    0          if u = s
+    C_{v, u}   if v = s and u != s
+    C_{u, v}   otherwise
+
+# E05: not a source/sink
+NST_u = not S_u . not T_u :: /\ AND(∩)
+# E06: active vertices: internal vertices with excess flow
+Act_{i, u} = NST_u .^1 (E_{i, u} .^2 0)_{i, u} :: /\^1 <-(∩) /\^2 >(∩)
+# E07: residual edges leaving an active vertex; saturated edges are empty,
+#      so the intersect skips them
+ActR_{i, u, v} = Act_{i, u} . R_{i, u, v} :: /\ <-(∩)
+# E08: check height rule D(u) = D(v)+1
+Lbl_{i, u, v} = D_{i, u} . (D_{i, v} + 1)_{i, v} :: /\ ==(∩)
+# E09: active residual edges satisfying the height rule
+Adm_{i, u, v} = ActR_{i, u, v} . Lbl_{i, u, v} :: /\ AND(∩)
+
+# Push Step
+# E10: choose one admissible neighbor for each pushing vertex
+PushCand_{i, u, v*} = Adm_{i, u, v} <<<_{v*} 1(pick-admissible-edge)
+# E11: push min(excess, residual) on selected edges
+delta_{i, u, v} = (E_{i, u} .^1 R_{i, u, v})_{i, u, v} .^2 PushCand_{i, u, v} :: /\^1 min(∩) /\^2 <-(∩)
+# E12: adjust flow on selected edges
+F_{i+1, u, v} = (F_{i, u, v} .^1 delta_{i, u, v})_{i, u, v} .^2 delta_{i, v, u} :: /\^1 +(∪) /\^2 -(∪)
+# E13: total new flow pushed into each vertex
+InPush_{i, u}  = delta_{i, v, u} :: \/ +(∪)
+# E14: total flow pushed out of each vertex
+OutPush_{i, u} = delta_{i, u, v} :: \/ +(∪)
+# E15: add received / subtract sent flow to excess
+E_{i+1, u} = (E_{i, u} .^1 InPush_{i, u})_{i, u} .^2 OutPush_{i, u} :: /\^1 +(∪) /\^2 -(∪)
+# E16: subtract used residual capacity and add reverse residual capacity
+R_{i+1, u, v} = (R_{i, u, v} .^1 delta_{i, u, v})_{i, u, v} .^2 delta_{i, v, u} :: /\^1 -(∪) /\^2 +(∪)
+
+# Relabel Step
+# E17: admissible edges after the push update
+Adm_{i+1, u, v} = R_{i+1, u, v} . Lbl_{i, u, v} :: /\ ->(∩)
+# E18: whether each vertex can still push after the update
+HasAdm_{i+1, u} = Adm_{i+1, u, v} :: \/ OR(∪)
+# E19: active vertices, recomputed from the excess the push produced
+Act_{i+1, u} = NST_u .^1 (E_{i+1, u} .^2 0)_{i+1, u} :: /\^1 <-(∩) /\^2 >(∩)
+# E20: active vertices with no admissible edge will relabel
+Rel_{i+1, u} = Act_{i+1, u} . not HasAdm_{i+1, u} :: /\ AND(∩)
+# E21: get labels of residual neighbors for relabel vertices
+NeiLbl_{i, u, v} = (R_{i+1, u, v} .^1 Rel_{i+1, u})_{i, u, v} .^2 D_{i, v} :: /\^1 <-(∩) /\^2 ->(∩)
+# E22: minimum label among residual neighbors
+MinNeiLbl_{i, u} = NeiLbl_{i, u, v} :: \/ min(∪)
+# E23: add 1 to the label of the lowest residual neighbor
+NewD_{i, u} = (MinNeiLbl_{i, u} . 1)_{i, u} :: /\ +(∩)
+# E24: apply relabel -- partial update, so vertices that did not relabel keep
+#      their previous height
+D_{i+1, u} = D_{i, u} . NewD_{i, u} :: /\ <<(∪)
+
+<> : ||Act_{i+1}|| == 0          # stop when no internal vertex has excess

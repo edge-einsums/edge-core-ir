@@ -1,0 +1,5 @@
+{
+  "name": "G",
+  "ranks": [{"name": "S"}],
+  "data_type": {"kind": "builtin", "name": "int"}
+}

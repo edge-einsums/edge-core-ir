@@ -1,0 +1,6 @@
+{
+  "name": "G",
+  "ranks": [{"name": "S"}],
+  "data_type": {"kind": "exotic", "name": "int"},
+  "empty_value": 0
+}

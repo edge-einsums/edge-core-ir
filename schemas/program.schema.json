@@ -1,0 +1,2127 @@
+{
+  "$defs": {
+    "AnonymousTensor": {
+      "additionalProperties": false,
+      "description": "A parenthesized sub-expression used as an operand.\n\nPer the grammar:\n    <anonymous-tensor> := \"(\" <expression> \")\" <rank-expression-list>\n\nAn anonymous tensor wraps an expression and gives it an output\nshape (the rank-expression list \u2014 the subscript on the closing\nparen, e.g. (...)_{m,n}). The enclosing expression consumes it as\nan operand, in the same syntactic position an InputTensor would\noccupy; but it is not a declared tensor \u2014 the value at each point\ncomes from evaluating the inner expression under the relevant\ncomputation specs from the outer Einsum.\n\nComputation specs do NOT live on AnonymousTensor. All specs for an\nEinsum live at the outer Einsum level. Labels are flat within an\nEinsum: every binary in the entire expression tree (including\nbinaries inside nested AnonymousTensors) has a unique label in a\nsingle global namespace, and the label on each BinaryApp links to\nthe corresponding ComputationSpec in the enclosing Einsum's spec\nlist regardless of how deeply nested the BinaryApp is.\n\nValidation that every binary has a matching spec, that every spec\nhas a matching binary, and that labels are globally unique within\nan Einsum, is a Layer 2 concern; the IR does not enforce label\ncoverage or uniqueness structurally.",
+      "properties": {
+        "kind": {
+          "const": "anonymous",
+          "default": "anonymous",
+          "title": "Kind",
+          "type": "string"
+        },
+        "expression": {
+          "discriminator": {
+            "mapping": {
+              "anonymous": "#/$defs/AnonymousTensor",
+              "binary": "#/$defs/BinaryApp",
+              "input": "#/$defs/InputTensor",
+              "rank_value": "#/$defs/RankValue",
+              "unary": "#/$defs/UnaryApp"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/InputTensor"
+            },
+            {
+              "$ref": "#/$defs/UnaryApp"
+            },
+            {
+              "$ref": "#/$defs/BinaryApp"
+            },
+            {
+              "$ref": "#/$defs/AnonymousTensor"
+            },
+            {
+              "$ref": "#/$defs/RankValue"
+            }
+          ],
+          "title": "Expression"
+        },
+        "ranks": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "arith": "#/$defs/RankArith",
+                "func": "#/$defs/RankFunction",
+                "literal": "#/$defs/RankConstantLiteral",
+                "shape_sym": "#/$defs/RankConstantShapeSym",
+                "var": "#/$defs/RankVariable"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/RankVariable"
+              },
+              {
+                "$ref": "#/$defs/RankConstantLiteral"
+              },
+              {
+                "$ref": "#/$defs/RankConstantShapeSym"
+              },
+              {
+                "$ref": "#/$defs/RankArith"
+              },
+              {
+                "$ref": "#/$defs/RankFunction"
+              }
+            ]
+          },
+          "title": "Ranks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "expression",
+        "ranks"
+      ],
+      "title": "AnonymousTensor",
+      "type": "object"
+    },
+    "BinaryApp": {
+      "additionalProperties": false,
+      "description": "A binary operation between two expressions, tagged with a label.\n\nPer the grammar:\n    <expression> := <expression> \".\" <binary-label> <expression>\n\nThe label is an integer that links this binary to its corresponding\ncomputation spec(s) in the surrounding Einsum's spec list. The IR\ndoes not store the actual compute/merge operators here; those live\non the matching ComputationSpec.\n\nRecursive: lhs and rhs can be any Expression variant.",
+      "properties": {
+        "kind": {
+          "const": "binary",
+          "default": "binary",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "integer"
+        },
+        "lhs": {
+          "discriminator": {
+            "mapping": {
+              "anonymous": "#/$defs/AnonymousTensor",
+              "binary": "#/$defs/BinaryApp",
+              "input": "#/$defs/InputTensor",
+              "rank_value": "#/$defs/RankValue",
+              "unary": "#/$defs/UnaryApp"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/InputTensor"
+            },
+            {
+              "$ref": "#/$defs/UnaryApp"
+            },
+            {
+              "$ref": "#/$defs/BinaryApp"
+            },
+            {
+              "$ref": "#/$defs/AnonymousTensor"
+            },
+            {
+              "$ref": "#/$defs/RankValue"
+            }
+          ],
+          "title": "Lhs"
+        },
+        "rhs": {
+          "discriminator": {
+            "mapping": {
+              "anonymous": "#/$defs/AnonymousTensor",
+              "binary": "#/$defs/BinaryApp",
+              "input": "#/$defs/InputTensor",
+              "rank_value": "#/$defs/RankValue",
+              "unary": "#/$defs/UnaryApp"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/InputTensor"
+            },
+            {
+              "$ref": "#/$defs/UnaryApp"
+            },
+            {
+              "$ref": "#/$defs/BinaryApp"
+            },
+            {
+              "$ref": "#/$defs/AnonymousTensor"
+            },
+            {
+              "$ref": "#/$defs/RankValue"
+            }
+          ],
+          "title": "Rhs"
+        }
+      },
+      "required": [
+        "label",
+        "lhs",
+        "rhs"
+      ],
+      "title": "BinaryApp",
+      "type": "object"
+    },
+    "BuiltinComputeOp": {
+      "additionalProperties": false,
+      "description": "Built-in compute operator.\n\nPer the grammar:\n    <compute-operator> := \"+\" | \"-\" | \"*\" | \"/\" | <user-defined-function>\n\nThe Unicode symbols in the paper (multiplication, division) are\nnormalized to ASCII (*, /) by the parser before reaching the IR.",
+      "properties": {
+        "kind": {
+          "const": "builtin",
+          "default": "builtin",
+          "title": "Kind",
+          "type": "string"
+        },
+        "symbol": {
+          "enum": [
+            "+",
+            "-",
+            "*",
+            "/"
+          ],
+          "title": "Symbol",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol"
+      ],
+      "title": "BuiltinComputeOp",
+      "type": "object"
+    },
+    "BuiltinDataType": {
+      "additionalProperties": false,
+      "description": "A built-in data type: int, float, or bool.",
+      "properties": {
+        "kind": {
+          "const": "builtin",
+          "default": "builtin",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "enum": [
+            "int",
+            "float",
+            "bool"
+          ],
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "BuiltinDataType",
+      "type": "object"
+    },
+    "BuiltinMergeOp": {
+      "additionalProperties": false,
+      "description": "Built-in merge operator. There are 16 of these, one for each\ntruth table on two Boolean inputs (presence flags for left and\nright operands).\n\nThe 16 ASCII names map to the paper's Unicode symbols as recorded\nin op_properties.py. The truth table for each is in Appendix A\nof the paper.\n\nNote on naming: the paper's `take_left` symbol can appear as either a\nmerge operator (one of the 16 built-ins listed here as\n\"take_left\") or as a user-defined compute operator (a function\nthat returns its left argument value). These are different\noperator categories despite sharing the paper symbol; the IR\ndistinguishes them by which field they appear in (a MapSpec's\nmerge_op vs its compute_op). Same for \"take_right\".\n\nNames (in paper appendix order):\n- \"pass_through\": output present for all inputs\n- \"no_pass\": output never present\n- \"intersect\": output present iff both inputs present\n- \"take_left_only\": present iff left only\n- \"take_left\": present iff left present\n- \"take_right_only\": present iff right only\n- \"take_right\": present iff right present\n- \"xor\": present iff exactly one input present\n- \"union\": present iff at least one input present\n- \"nor\": present iff neither input present\n- \"xnor\": present iff both inputs same presence\n- \"not_right\": present iff right not present\n- \"not_left\": present iff left not present\n- \"implies_left\": present iff right implies left\n- \"implies_right\": present iff left implies right\n- \"nand\": present iff not both inputs present",
+      "properties": {
+        "kind": {
+          "const": "builtin",
+          "default": "builtin",
+          "title": "Kind",
+          "type": "string"
+        },
+        "symbol": {
+          "enum": [
+            "pass_through",
+            "no_pass",
+            "intersect",
+            "take_left_only",
+            "take_left",
+            "take_right_only",
+            "take_right",
+            "xor",
+            "union",
+            "nor",
+            "xnor",
+            "not_right",
+            "not_left",
+            "implies_left",
+            "implies_right",
+            "nand"
+          ],
+          "title": "Symbol",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol"
+      ],
+      "title": "BuiltinMergeOp",
+      "type": "object"
+    },
+    "BuiltinUnaryOp": {
+      "additionalProperties": false,
+      "description": "Built-in unary operator: negation.\n\nPer the grammar:\n    <unary-operator> := \"not\" | <user-defined-function>\n\nThe paper uses the Unicode negation symbol; the IR uses the ASCII\nname \"not\".",
+      "properties": {
+        "kind": {
+          "const": "builtin",
+          "default": "builtin",
+          "title": "Kind",
+          "type": "string"
+        },
+        "symbol": {
+          "const": "not",
+          "title": "Symbol",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol"
+      ],
+      "title": "BuiltinUnaryOp",
+      "type": "object"
+    },
+    "Comparison": {
+      "additionalProperties": false,
+      "description": "A comparison between two value expressions.\n\nThe comparison operator is from the closed set\n{==, !=, >, <, >=, <=}. The paper uses Unicode glyphs\n(the identity, not-equal, and inequality signs); the IR uses\nASCII. The lowering pass rewrites Unicode forms to ASCII.\n\nSemantics: when both sides are multi-element, the comparison holds\niff every point in the shared iteration space satisfies the\nelementwise predicate.",
+      "properties": {
+        "kind": {
+          "const": "comparison",
+          "default": "comparison",
+          "title": "Kind",
+          "type": "string"
+        },
+        "lhs": {
+          "discriminator": {
+            "mapping": {
+              "property_app": "#/$defs/PropertyApp",
+              "rank_value": "#/$defs/RankExpressionValue",
+              "tensor_value": "#/$defs/TensorProjectionValue"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/TensorProjectionValue"
+            },
+            {
+              "$ref": "#/$defs/RankExpressionValue"
+            },
+            {
+              "$ref": "#/$defs/PropertyApp"
+            }
+          ],
+          "title": "Lhs"
+        },
+        "op": {
+          "enum": [
+            "==",
+            "!=",
+            ">",
+            "<",
+            ">=",
+            "<="
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "rhs": {
+          "discriminator": {
+            "mapping": {
+              "property_app": "#/$defs/PropertyApp",
+              "rank_value": "#/$defs/RankExpressionValue",
+              "tensor_value": "#/$defs/TensorProjectionValue"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/TensorProjectionValue"
+            },
+            {
+              "$ref": "#/$defs/RankExpressionValue"
+            },
+            {
+              "$ref": "#/$defs/PropertyApp"
+            }
+          ],
+          "title": "Rhs"
+        }
+      },
+      "required": [
+        "lhs",
+        "op",
+        "rhs"
+      ],
+      "title": "Comparison",
+      "type": "object"
+    },
+    "CoordSetAlias": {
+      "additionalProperties": false,
+      "description": "Alias another tensor's rank coordinate set.\n\nUsed for declarations like D^G = S^G, which say \"rank D of the\ntensor being declared has the same coordinate set as rank S of\ntensor G.\"",
+      "properties": {
+        "kind": {
+          "const": "alias",
+          "default": "alias",
+          "title": "Kind",
+          "type": "string"
+        },
+        "tensor": {
+          "pattern": "^[A-Z][A-Za-z0-9_]*$",
+          "title": "Tensor",
+          "type": "string"
+        },
+        "rank": {
+          "pattern": "^[A-Z]+$",
+          "title": "Rank",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tensor",
+        "rank"
+      ],
+      "title": "CoordSetAlias",
+      "type": "object"
+    },
+    "CoordSetEnum": {
+      "additionalProperties": false,
+      "description": "Explicit enumeration of coordinates.\n\nUsed when the rank coordinate set is explicit, e.g.,\n{0, 1, 5, 7} for a sparse coordinate set or\n{a, b, c, d, e} for vertex labels.\n\nCoordinates can be strings or integers. The grammar production\n<coordinate> := /[A-Za-z0-9]+/ permits both forms; in JSON we\naccept either.",
+      "properties": {
+        "kind": {
+          "const": "enum",
+          "default": "enum",
+          "title": "Kind",
+          "type": "string"
+        },
+        "coords": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "title": "Coords",
+          "type": "array"
+        }
+      },
+      "required": [
+        "coords"
+      ],
+      "title": "CoordSetEnum",
+      "type": "object"
+    },
+    "CoordSetInterval": {
+      "additionalProperties": false,
+      "description": "Interval [lo, hi).\n\nBoth endpoints are part of the same shape mini-DSL as\nRankDeclaration.shape: integers (e.g., 0, 5) or strings\n(e.g., \"|V|\", \"N\"). The evaluator resolves strings to\nconcrete integers when constructing iteration spaces.\n\nUsed for explicit dense ranges and for generative ranks\nwhere we know the start (e.g., i = 0) but not the end.",
+      "properties": {
+        "kind": {
+          "const": "interval",
+          "default": "interval",
+          "title": "Kind",
+          "type": "string"
+        },
+        "lo": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Lo"
+        },
+        "hi": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Hi"
+        }
+      },
+      "required": [
+        "lo",
+        "hi"
+      ],
+      "title": "CoordSetInterval",
+      "type": "object"
+    },
+    "CoordSetName": {
+      "additionalProperties": false,
+      "description": "A coordinate set referenced by name; contents bound at runtime by the host.\n\nSame convention as tensor names: the IR carries the string, the host\nruntime resolves it. No \"runtime\" tag on the IR. Admissible in both\nRankDeclaration.coord_set (a tensor declaring \"my rank's coord set is\nwhatever this name resolves to\") and SetMembership.coord_set (a\npredicate testing membership in a host-supplied set, e.g. BFS's `id`).",
+      "properties": {
+        "kind": {
+          "const": "named",
+          "default": "named",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "CoordSetName",
+      "type": "object"
+    },
+    "CoordinateOp": {
+      "additionalProperties": false,
+      "description": "Coordinate operator for the Populate action.\n\nPer the grammar:\n    <coordinate-operator> := <user-defined-function>\n\nAll coordinate operators are user-defined (no built-in). Used only\nin the Populate action to produce a coordinate set from a computed\nvalue and the current output fiber state.",
+      "properties": {
+        "name": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "CoordinateOp",
+      "type": "object"
+    },
+    "DiamondBooleanApp": {
+      "additionalProperties": false,
+      "description": "A user-defined Boolean-returning function at the predicate level.\n\nThe whole stopping condition is `name(operand, operand, ...)`,\nwhere `name` is a user-defined function that must return Boolean.\nThe IR does not enforce the return type; the Layer 2 validator\ndoes.\n\nPer the lowering contract, `pinned_rank_variables` includes the\nenclosing StoppingCondition.rank_variable as its first element.\n\nThere are no built-in DiamondBooleanApp names. All names resolve\nthrough the user-defined function registry.",
+      "properties": {
+        "kind": {
+          "const": "diamond_boolean_app",
+          "default": "diamond_boolean_app",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "pinned_rank_variables": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Pinned Rank Variables",
+          "type": "array"
+        },
+        "operands": {
+          "items": {
+            "$ref": "#/$defs/TensorProjection"
+          },
+          "minItems": 1,
+          "title": "Operands",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "pinned_rank_variables",
+        "operands"
+      ],
+      "title": "DiamondBooleanApp",
+      "type": "object"
+    },
+    "Einsum": {
+      "additionalProperties": false,
+      "description": "A single Einsum: output = expression, with computation specs.\n\nPer the grammar:\n    <einsum> := <iteration-spec>\n              | <iteration-spec> \"::\" <computation-spec-list>\n    <iteration-spec> := <output-tensor> \"=\" <expression>\n\nThe output is a tensor projection (a tensor name plus its rank\nexpressions). The expression is the right-hand side. The specs are\nthe list of computation specs (Map, Reduce, Populate) that apply\nto the binary operations within the expression. The specs list may\nbe empty (when the expression is just an InputTensor or a UnaryApp,\nno binary operations exist).\n\nSpecs live here, at the Einsum level, even for binaries that appear\ninside a nested AnonymousTensor in the expression: binary labels\nform a single flat namespace within an Einsum, and each BinaryApp's\nlabel links to the matching ComputationSpec in this list regardless\nof nesting depth.\n\nThis shares structure with AnonymousTensor (in expr.py): both have\nan expression and an output rank-expression list. They differ in\nthat Einsum has an output_tensor name (mandatory) and the specs\nlist, while AnonymousTensor has neither (its output is the\nanonymous tensor itself, used as an operand by the surrounding\nexpression, and its binaries' specs live on the enclosing Einsum).",
+      "properties": {
+        "output_tensor": {
+          "pattern": "^[A-Z][A-Za-z0-9_]*$",
+          "title": "Output Tensor",
+          "type": "string"
+        },
+        "output_ranks": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "arith": "#/$defs/RankArith",
+                "func": "#/$defs/RankFunction",
+                "literal": "#/$defs/RankConstantLiteral",
+                "shape_sym": "#/$defs/RankConstantShapeSym",
+                "var": "#/$defs/RankVariable"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/RankVariable"
+              },
+              {
+                "$ref": "#/$defs/RankConstantLiteral"
+              },
+              {
+                "$ref": "#/$defs/RankConstantShapeSym"
+              },
+              {
+                "$ref": "#/$defs/RankArith"
+              },
+              {
+                "$ref": "#/$defs/RankFunction"
+              }
+            ]
+          },
+          "title": "Output Ranks",
+          "type": "array"
+        },
+        "expression": {
+          "discriminator": {
+            "mapping": {
+              "anonymous": "#/$defs/AnonymousTensor",
+              "binary": "#/$defs/BinaryApp",
+              "input": "#/$defs/InputTensor",
+              "rank_value": "#/$defs/RankValue",
+              "unary": "#/$defs/UnaryApp"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/InputTensor"
+            },
+            {
+              "$ref": "#/$defs/UnaryApp"
+            },
+            {
+              "$ref": "#/$defs/BinaryApp"
+            },
+            {
+              "$ref": "#/$defs/AnonymousTensor"
+            },
+            {
+              "$ref": "#/$defs/RankValue"
+            }
+          ],
+          "title": "Expression"
+        },
+        "specs": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "map": "#/$defs/MapSpec",
+                "populate": "#/$defs/PopulateSpec",
+                "reduce": "#/$defs/ReduceSpec"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/MapSpec"
+              },
+              {
+                "$ref": "#/$defs/ReduceSpec"
+              },
+              {
+                "$ref": "#/$defs/PopulateSpec"
+              }
+            ]
+          },
+          "title": "Specs",
+          "type": "array"
+        },
+        "predicates": {
+          "default": [],
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "and": "#/$defs/LogicalAnd",
+                "comparison": "#/$defs/PredicateComparison",
+                "not": "#/$defs/LogicalNot",
+                "or": "#/$defs/LogicalOr",
+                "set_membership": "#/$defs/SetMembership"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/SetMembership"
+              },
+              {
+                "$ref": "#/$defs/PredicateComparison"
+              },
+              {
+                "$ref": "#/$defs/LogicalAnd"
+              },
+              {
+                "$ref": "#/$defs/LogicalOr"
+              },
+              {
+                "$ref": "#/$defs/LogicalNot"
+              }
+            ]
+          },
+          "title": "Predicates",
+          "type": "array"
+        }
+      },
+      "required": [
+        "output_tensor",
+        "output_ranks",
+        "expression",
+        "specs"
+      ],
+      "title": "Einsum",
+      "type": "object"
+    },
+    "Initialization": {
+      "additionalProperties": false,
+      "description": "The initialization section: a list of Einsums that initialize\ninput tensors.\n\nPer the grammar, the initialization list is a sequence of Einsums.\nAny valid Einsum may appear here (per paper Section 7.2). The\ninitialization list may be empty for programs that don't need\nexplicit tensor initialization.\n\nAt the validation stage, the Einsum list CAN ONLY CONTAIN\noutput tensors that appear in the cascade.",
+      "properties": {
+        "einsums": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Einsum"
+          },
+          "title": "Einsums",
+          "type": "array"
+        }
+      },
+      "title": "Initialization",
+      "type": "object"
+    },
+    "InputTensor": {
+      "additionalProperties": false,
+      "description": "A tensor projection used as an operand in an expression.\n\nWraps a TensorProjection. This is the leaf case of an Expression\ntree: a reference to a declared input tensor at a specific\niteration-space mapping.",
+      "properties": {
+        "kind": {
+          "const": "input",
+          "default": "input",
+          "title": "Kind",
+          "type": "string"
+        },
+        "proj": {
+          "$ref": "#/$defs/TensorProjection"
+        }
+      },
+      "required": [
+        "proj"
+      ],
+      "title": "InputTensor",
+      "type": "object"
+    },
+    "IterativeRankSpec": {
+      "additionalProperties": false,
+      "description": "The three things an iterative cascade specifies about its rank.\n\nThe EDGE syntax: \"If a cascade is\niterative, we additionally specify (a) a generational rank variable,\n(b) its initial value, and (c) its rank variable set. If these are\nomitted, the default generational rank variable is `i`, the default\ninitial value is `0`, and the default rank variable set is\n`RV_i = { i | i in [0, I) and not (diamond)(i) }`.\"\n\nAll three defaults are real defaults, so `NestedCascade.iterative_rank`\nmay be omitted entirely and consumers apply them. It is present when a\ncascade departs from them -- max-flow's preflow, for instance, indexes\nits first computed generation `1`, not `0`.\n\n`coord_set` is the rank variable set. When `None` the set is the default\nabove: the whole numbers, less the generations the diamond excludes.",
+      "properties": {
+        "rank_variable": {
+          "pattern": "^[a-z]+[A-Za-z0-9]*$",
+          "title": "Rank Variable",
+          "type": "string"
+        },
+        "initial_value": {
+          "default": 0,
+          "title": "Initial Value",
+          "type": "integer"
+        },
+        "coord_set": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "alias": "#/$defs/CoordSetAlias",
+                  "enum": "#/$defs/CoordSetEnum",
+                  "interval": "#/$defs/CoordSetInterval",
+                  "named": "#/$defs/CoordSetName"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/CoordSetEnum"
+                },
+                {
+                  "$ref": "#/$defs/CoordSetInterval"
+                },
+                {
+                  "$ref": "#/$defs/CoordSetAlias"
+                },
+                {
+                  "$ref": "#/$defs/CoordSetName"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coord Set"
+        }
+      },
+      "required": [
+        "rank_variable"
+      ],
+      "title": "IterativeRankSpec",
+      "type": "object"
+    },
+    "LogicalAnd": {
+      "additionalProperties": false,
+      "description": "All operand predicates hold.",
+      "properties": {
+        "kind": {
+          "const": "and",
+          "default": "and",
+          "title": "Kind",
+          "type": "string"
+        },
+        "operands": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "and": "#/$defs/LogicalAnd",
+                "comparison": "#/$defs/PredicateComparison",
+                "not": "#/$defs/LogicalNot",
+                "or": "#/$defs/LogicalOr",
+                "set_membership": "#/$defs/SetMembership"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/SetMembership"
+              },
+              {
+                "$ref": "#/$defs/PredicateComparison"
+              },
+              {
+                "$ref": "#/$defs/LogicalAnd"
+              },
+              {
+                "$ref": "#/$defs/LogicalOr"
+              },
+              {
+                "$ref": "#/$defs/LogicalNot"
+              }
+            ]
+          },
+          "minItems": 2,
+          "title": "Operands",
+          "type": "array"
+        }
+      },
+      "required": [
+        "operands"
+      ],
+      "title": "LogicalAnd",
+      "type": "object"
+    },
+    "LogicalNot": {
+      "additionalProperties": false,
+      "description": "The operand predicate does NOT hold.",
+      "properties": {
+        "kind": {
+          "const": "not",
+          "default": "not",
+          "title": "Kind",
+          "type": "string"
+        },
+        "operand": {
+          "discriminator": {
+            "mapping": {
+              "and": "#/$defs/LogicalAnd",
+              "comparison": "#/$defs/PredicateComparison",
+              "not": "#/$defs/LogicalNot",
+              "or": "#/$defs/LogicalOr",
+              "set_membership": "#/$defs/SetMembership"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SetMembership"
+            },
+            {
+              "$ref": "#/$defs/PredicateComparison"
+            },
+            {
+              "$ref": "#/$defs/LogicalAnd"
+            },
+            {
+              "$ref": "#/$defs/LogicalOr"
+            },
+            {
+              "$ref": "#/$defs/LogicalNot"
+            }
+          ],
+          "title": "Operand"
+        }
+      },
+      "required": [
+        "operand"
+      ],
+      "title": "LogicalNot",
+      "type": "object"
+    },
+    "LogicalOr": {
+      "additionalProperties": false,
+      "description": "At least one operand predicate holds.",
+      "properties": {
+        "kind": {
+          "const": "or",
+          "default": "or",
+          "title": "Kind",
+          "type": "string"
+        },
+        "operands": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "and": "#/$defs/LogicalAnd",
+                "comparison": "#/$defs/PredicateComparison",
+                "not": "#/$defs/LogicalNot",
+                "or": "#/$defs/LogicalOr",
+                "set_membership": "#/$defs/SetMembership"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/SetMembership"
+              },
+              {
+                "$ref": "#/$defs/PredicateComparison"
+              },
+              {
+                "$ref": "#/$defs/LogicalAnd"
+              },
+              {
+                "$ref": "#/$defs/LogicalOr"
+              },
+              {
+                "$ref": "#/$defs/LogicalNot"
+              }
+            ]
+          },
+          "minItems": 2,
+          "title": "Operands",
+          "type": "array"
+        }
+      },
+      "required": [
+        "operands"
+      ],
+      "title": "LogicalOr",
+      "type": "object"
+    },
+    "MainEdge": {
+      "additionalProperties": false,
+      "description": "The main extended Einsum section: a nested cascade.\n\nThis is the workhorse of an EDGE program. Per paper Section 7.3,\na fully specified extended Einsum is a cascade of Einsum\nexpressions, possibly nested.",
+      "properties": {
+        "cascade": {
+          "$ref": "#/$defs/NestedCascade"
+        }
+      },
+      "required": [
+        "cascade"
+      ],
+      "title": "MainEdge",
+      "type": "object"
+    },
+    "MapSpec": {
+      "additionalProperties": false,
+      "description": "Map action: pointwise application of compute_op, with merge_op\ndetermining which iteration-space points are effectual.\n\nPer paper Section 6.4. The label links this spec to a binary\noperation in the expression tree (BinaryApp.label). The rank_list is\noptional: when omitted, map ranges over the full iteration space (per\nthe canonical formal semantics, the merge operator selects the\neffectual points). When supplied, the Layer 2 validator checks it\nagainst the derived set and hints on any mismatch.",
+      "properties": {
+        "kind": {
+          "const": "map",
+          "default": "map",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "integer"
+        },
+        "rank_list": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rank List"
+        },
+        "compute_op": {
+          "discriminator": {
+            "mapping": {
+              "builtin": "#/$defs/BuiltinComputeOp",
+              "user_defined": "#/$defs/UserDefinedComputeOp"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BuiltinComputeOp"
+            },
+            {
+              "$ref": "#/$defs/UserDefinedComputeOp"
+            }
+          ],
+          "title": "Compute Op"
+        },
+        "merge_op": {
+          "discriminator": {
+            "mapping": {
+              "builtin": "#/$defs/BuiltinMergeOp",
+              "user_defined": "#/$defs/UserDefinedMergeOp"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BuiltinMergeOp"
+            },
+            {
+              "$ref": "#/$defs/UserDefinedMergeOp"
+            }
+          ],
+          "title": "Merge Op"
+        }
+      },
+      "required": [
+        "label",
+        "compute_op",
+        "merge_op"
+      ],
+      "title": "MapSpec",
+      "type": "object"
+    },
+    "NestedCascade": {
+      "additionalProperties": false,
+      "description": "A nested cascade: a sequence of Einsums with optional stopping\nconditions for iteration.\n\nPer the grammar:\n    <nested-cascade> := <einsum-cascade>\n                      | <nested-cascade> <stopping-condition>\n    <einsum-cascade> := <einsum-cascade> <einsum> | <einsum>\n\nConceptually, a NestedCascade is a list of Einsums (the cascade)\nfollowed by zero or more stopping conditions that apply to the\niteration of the cascade.\n\nThe IR represents a NestedCascade flatly: a list of einsums and a\nlist of stopping conditions. The grammar's recursive shape\n(NestedCascade -> NestedCascade StoppingCondition) is normalized to\nthis flat form by the lowering pass.\n\nFor nested cascades within nested cascades (the \"nested\" in the\nname): the einsums list can contain Einsums whose expressions\ncontain AnonymousTensors. There is no separate \"sub-cascade\" type\nat this level; nesting happens through AnonymousTensor in the\nexpression tree. The specs for binaries inside a nested\nAnonymousTensor live on the enclosing Einsum's specs list (a flat\nlabel namespace) \u2014 they were never part of this cascade's\nstructure either way; the cascade only holds the list of Einsums\nand their stopping conditions.",
+      "properties": {
+        "einsums": {
+          "items": {
+            "$ref": "#/$defs/Einsum"
+          },
+          "minItems": 1,
+          "title": "Einsums",
+          "type": "array"
+        },
+        "stopping_conditions": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/StoppingCondition"
+          },
+          "title": "Stopping Conditions",
+          "type": "array"
+        },
+        "iterative_rank": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IterativeRankSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "einsums"
+      ],
+      "title": "NestedCascade",
+      "type": "object"
+    },
+    "PopulateSpec": {
+      "additionalProperties": false,
+      "description": "Populate action: produce the output coordinate set from a\ncomputed value, using coordinate_op to determine the new\ncoordinates.\n\nPer paper Section 6.6. The label optionally links this spec to a binary\noperation; `None` means the populate applies to the whole right-hand\nside, which is the single-operand case\n(`F_{i,v*} = S_{i,v} :: populate`). Populate's own operands are the\nreduction temporary and the current output tensor, so it never\nstructurally requires a binary. The rank_list names the mutable\n(`*`-marked) ranks being\npopulated and may be empty: an empty list `[]` is the default-\nassignment case (no `*`, output coordinate taken from the iteration\npoint), while a non-empty list names the populated mutable ranks.",
+      "properties": {
+        "kind": {
+          "const": "populate",
+          "default": "populate",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "rank_list": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 0,
+          "title": "Rank List",
+          "type": "array"
+        },
+        "compute_op": {
+          "discriminator": {
+            "mapping": {
+              "builtin": "#/$defs/BuiltinComputeOp",
+              "user_defined": "#/$defs/UserDefinedComputeOp"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BuiltinComputeOp"
+            },
+            {
+              "$ref": "#/$defs/UserDefinedComputeOp"
+            }
+          ],
+          "title": "Compute Op"
+        },
+        "coord_op": {
+          "$ref": "#/$defs/CoordinateOp"
+        }
+      },
+      "required": [
+        "rank_list",
+        "compute_op",
+        "coord_op"
+      ],
+      "title": "PopulateSpec",
+      "type": "object"
+    },
+    "PredicateComparison": {
+      "additionalProperties": false,
+      "description": "A comparison between two coordinate-valued expressions.\n\nBoth lhs and rhs are RankExpression (the existing union: RankVariable\n| RankConstantLiteral | RankConstantShapeSym | RankArith | RankFunction).\nTensor-projection LHS is structurally rejected \u2014 predicates restrict\niteration based on coordinate values, not tensor values.\n\nThe op alphabet is the same six as Comparison.op in stopping.py\n(==, !=, >, <, >=, <=); ComparisonOp is reused.",
+      "properties": {
+        "kind": {
+          "const": "comparison",
+          "default": "comparison",
+          "title": "Kind",
+          "type": "string"
+        },
+        "lhs": {
+          "discriminator": {
+            "mapping": {
+              "arith": "#/$defs/RankArith",
+              "func": "#/$defs/RankFunction",
+              "literal": "#/$defs/RankConstantLiteral",
+              "shape_sym": "#/$defs/RankConstantShapeSym",
+              "var": "#/$defs/RankVariable"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RankVariable"
+            },
+            {
+              "$ref": "#/$defs/RankConstantLiteral"
+            },
+            {
+              "$ref": "#/$defs/RankConstantShapeSym"
+            },
+            {
+              "$ref": "#/$defs/RankArith"
+            },
+            {
+              "$ref": "#/$defs/RankFunction"
+            }
+          ],
+          "title": "Lhs"
+        },
+        "op": {
+          "enum": [
+            "==",
+            "!=",
+            ">",
+            "<",
+            ">=",
+            "<="
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "rhs": {
+          "discriminator": {
+            "mapping": {
+              "arith": "#/$defs/RankArith",
+              "func": "#/$defs/RankFunction",
+              "literal": "#/$defs/RankConstantLiteral",
+              "shape_sym": "#/$defs/RankConstantShapeSym",
+              "var": "#/$defs/RankVariable"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RankVariable"
+            },
+            {
+              "$ref": "#/$defs/RankConstantLiteral"
+            },
+            {
+              "$ref": "#/$defs/RankConstantShapeSym"
+            },
+            {
+              "$ref": "#/$defs/RankArith"
+            },
+            {
+              "$ref": "#/$defs/RankFunction"
+            }
+          ],
+          "title": "Rhs"
+        }
+      },
+      "required": [
+        "lhs",
+        "op",
+        "rhs"
+      ],
+      "title": "PredicateComparison",
+      "type": "object"
+    },
+    "PropertyApp": {
+      "additionalProperties": false,
+      "description": "A property extractor applied to one or more tensor projections.\n\nThe name field is restricted to the closed set of built-in\nproperties. Currently the only built-in is `occupancy`, which\nreturns the number of non-empty coordinates in the operand's\niteration space (with the pinned ranks held fixed).\n\nPer the lowering contract, `pinned_rank_variables` includes the\nenclosing StoppingCondition.rank_variable as its first element.\nAny additional ranks listed are held fixed when evaluating the\nproperty.\n\nTo add a new built-in property, extend the Literal type for `name`.\nThe interpreter and validator look up properties by this name.",
+      "properties": {
+        "kind": {
+          "const": "property_app",
+          "default": "property_app",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "const": "occupancy",
+          "title": "Name",
+          "type": "string"
+        },
+        "pinned_rank_variables": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Pinned Rank Variables",
+          "type": "array"
+        },
+        "operands": {
+          "items": {
+            "$ref": "#/$defs/TensorProjection"
+          },
+          "minItems": 1,
+          "title": "Operands",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "pinned_rank_variables",
+        "operands"
+      ],
+      "title": "PropertyApp",
+      "type": "object"
+    },
+    "RankArith": {
+      "additionalProperties": false,
+      "description": "Binary arithmetic on rank expressions.\n\nSupports +, -, *, /, //, % as standard arithmetic operators on\ninteger-valued rank expressions. Recursive: lhs and rhs can be any\nRankExpression, allowing arbitrary nesting like (m + 1) * 2 or\n(k * |V|) % N.\n\nWhether a particular RankArith tree is affine is a *derived* fact,\nnot stored on the node. See ``edge_ir.analysis.affine`` for the\nanalysis pass that computes it into a side table.",
+      "properties": {
+        "kind": {
+          "const": "arith",
+          "default": "arith",
+          "title": "Kind",
+          "type": "string"
+        },
+        "op": {
+          "enum": [
+            "+",
+            "-",
+            "*",
+            "/",
+            "//",
+            "%"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "lhs": {
+          "discriminator": {
+            "mapping": {
+              "arith": "#/$defs/RankArith",
+              "func": "#/$defs/RankFunction",
+              "literal": "#/$defs/RankConstantLiteral",
+              "shape_sym": "#/$defs/RankConstantShapeSym",
+              "var": "#/$defs/RankVariable"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RankVariable"
+            },
+            {
+              "$ref": "#/$defs/RankConstantLiteral"
+            },
+            {
+              "$ref": "#/$defs/RankConstantShapeSym"
+            },
+            {
+              "$ref": "#/$defs/RankArith"
+            },
+            {
+              "$ref": "#/$defs/RankFunction"
+            }
+          ],
+          "title": "Lhs"
+        },
+        "rhs": {
+          "discriminator": {
+            "mapping": {
+              "arith": "#/$defs/RankArith",
+              "func": "#/$defs/RankFunction",
+              "literal": "#/$defs/RankConstantLiteral",
+              "shape_sym": "#/$defs/RankConstantShapeSym",
+              "var": "#/$defs/RankVariable"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RankVariable"
+            },
+            {
+              "$ref": "#/$defs/RankConstantLiteral"
+            },
+            {
+              "$ref": "#/$defs/RankConstantShapeSym"
+            },
+            {
+              "$ref": "#/$defs/RankArith"
+            },
+            {
+              "$ref": "#/$defs/RankFunction"
+            }
+          ],
+          "title": "Rhs"
+        }
+      },
+      "required": [
+        "op",
+        "lhs",
+        "rhs"
+      ],
+      "title": "RankArith",
+      "type": "object"
+    },
+    "RankConstantLiteral": {
+      "additionalProperties": false,
+      "description": "A literal coordinate value in a rank arithmetic expression.\n\nThe value is either:\n- An integer literal (e.g., 0, 1, 2, -3) -- e.g., the `1` in `m + 1`\n- A label from a declared char/string-valued coord set (e.g., \"a\"\n  when a rank's CoordSetEnum lists [\"a\",\"b\",\"c\"]). Fully static; a\n  value in the rank's coord space.\n\nDistinct from RankConstantShapeSym, which references a declared\nshape parameter that the shape resolver substitutes at\niteration-space construction.",
+      "properties": {
+        "kind": {
+          "const": "literal",
+          "default": "literal",
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "RankConstantLiteral",
+      "type": "object"
+    },
+    "RankConstantShapeSym": {
+      "additionalProperties": false,
+      "description": "A reference to a declared shape parameter (|V|, N, M, ...).\n\nThe shape resolver substitutes the bound integer at\niteration-space construction. Used in expressions like\n``k * |V|`` (where ``|V|`` is a RankConstantShapeSym).",
+      "properties": {
+        "kind": {
+          "const": "shape_sym",
+          "default": "shape_sym",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "RankConstantShapeSym",
+      "type": "object"
+    },
+    "RankDeclaration": {
+      "additionalProperties": false,
+      "description": "One rank in a tensor declaration.\n\nA rank's coordinate space is described by the combination of\n`shape` and `coord_set`. Both are independently optional;\ntogether they specify what the iteration space for this rank\nlooks like.\n\n`shape` gives a cardinality hint when one is known up front:\nan integer literal (e.g., 5), or a string from the shape\nmini-DSL (e.g., \"|V|\"). May be None for unbounded or\ngenerational ranks where the cardinality emerges from\nexecution rather than being declared.\n\n`coord_set` gives an explicit coordinate set when needed:\nan enumeration (sparse subset, or non-integer labels), an\ninterval (explicit dense range), or an alias (defer to\nanother rank's coord set). When None, the rank uses the\ndefault dense integer coords [0, shape) implied by shape.",
+      "properties": {
+        "name": {
+          "pattern": "^[A-Z]+$",
+          "title": "Name",
+          "type": "string"
+        },
+        "shape": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Shape"
+        },
+        "coord_set": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "alias": "#/$defs/CoordSetAlias",
+                  "enum": "#/$defs/CoordSetEnum",
+                  "interval": "#/$defs/CoordSetInterval",
+                  "named": "#/$defs/CoordSetName"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/CoordSetEnum"
+                },
+                {
+                  "$ref": "#/$defs/CoordSetInterval"
+                },
+                {
+                  "$ref": "#/$defs/CoordSetAlias"
+                },
+                {
+                  "$ref": "#/$defs/CoordSetName"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coord Set"
+        },
+        "iterative": {
+          "default": false,
+          "title": "Iterative",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "RankDeclaration",
+      "type": "object"
+    },
+    "RankExpressionValue": {
+      "additionalProperties": false,
+      "description": "A rank-variable expression used as a value expression.\n\nWraps a RankExpression (itself a discriminated union of\nRankVariable, RankConstantLiteral, RankConstantShapeSym, RankArith,\nRankFunction) to give it a `kind` discriminator for the outer\nValueExpression union.",
+      "properties": {
+        "kind": {
+          "const": "rank_value",
+          "default": "rank_value",
+          "title": "Kind",
+          "type": "string"
+        },
+        "expr": {
+          "discriminator": {
+            "mapping": {
+              "arith": "#/$defs/RankArith",
+              "func": "#/$defs/RankFunction",
+              "literal": "#/$defs/RankConstantLiteral",
+              "shape_sym": "#/$defs/RankConstantShapeSym",
+              "var": "#/$defs/RankVariable"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RankVariable"
+            },
+            {
+              "$ref": "#/$defs/RankConstantLiteral"
+            },
+            {
+              "$ref": "#/$defs/RankConstantShapeSym"
+            },
+            {
+              "$ref": "#/$defs/RankArith"
+            },
+            {
+              "$ref": "#/$defs/RankFunction"
+            }
+          ],
+          "title": "Expr"
+        }
+      },
+      "required": [
+        "expr"
+      ],
+      "title": "RankExpressionValue",
+      "type": "object"
+    },
+    "RankFunction": {
+      "additionalProperties": false,
+      "description": "A user-defined function applied to one or more rank expressions.\n\nPer the grammar:\n    <rank-expression> := <rank-mapping-function> \"(\" <rank-variable-list> \")\"\n    <rank-mapping-function> := <user-defined-function>\n\nThe grammar production lists arguments as a <rank-variable-list>, but\nthe IR intentionally accepts full rank-variable-expressions (RVEs) as\narguments: any RankExpression, i.e. variables, constants, structured\narithmetic, or nested functions. This is a deliberate extension over\nthe published grammar, consistent with how the IR already accepts\nstructured RankArith where the grammar folds everything under\n<rank-mapping-function> (see the module docstring above). So\nmin(a, 0), f(m, |V|), f(m + 1), and f(g(x)) are all valid.\n\nUsed when the mapping from iteration space to coordinate space is\nnot expressible as structured arithmetic. The canonical example is\nmin(a, w) from connected components (paper Section 7.3.5), which\nis non-affine and best left opaque.\n\nThe is_affine field is populated by the Layer 2 validator. For\nopaque functions, the validator cannot derive affine-ness from\nstructure; it relies on user annotation if any. None means \"not\nanalyzed yet\"; the validator may set it to False as a conservative\ndefault for unannotated user functions.",
+      "properties": {
+        "kind": {
+          "const": "func",
+          "default": "func",
+          "title": "Kind",
+          "type": "string"
+        },
+        "func_name": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+          "title": "Func Name",
+          "type": "string"
+        },
+        "args": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "arith": "#/$defs/RankArith",
+                "func": "#/$defs/RankFunction",
+                "literal": "#/$defs/RankConstantLiteral",
+                "shape_sym": "#/$defs/RankConstantShapeSym",
+                "var": "#/$defs/RankVariable"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/RankVariable"
+              },
+              {
+                "$ref": "#/$defs/RankConstantLiteral"
+              },
+              {
+                "$ref": "#/$defs/RankConstantShapeSym"
+              },
+              {
+                "$ref": "#/$defs/RankArith"
+              },
+              {
+                "$ref": "#/$defs/RankFunction"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Args",
+          "type": "array"
+        },
+        "is_affine": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Is Affine"
+        }
+      },
+      "required": [
+        "func_name",
+        "args"
+      ],
+      "title": "RankFunction",
+      "type": "object"
+    },
+    "RankValue": {
+      "additionalProperties": false,
+      "description": "A rank expression read as a VALUE, not as a subscript.\n\nPer EDGE's \"Rank Variables as Tensors\":\nEDGE allows a rank variable to appear as a\nscalar operand inside an expression -- at each point of the iteration\nspace the coordinate itself is cast into the data space.\n\nThis is the leaf the rest of the Expression union has no room for.\n``InputTensor`` reads a declared tensor; a zero-rank ``TensorDeclaration``\ncarrying a literal ``value`` (design decision D21) is a CONSTANT and\ncannot vary with the iteration point. A rank value varies with the point\nby construction, which is exactly what the DFS order stamp needs::\n\n    sigma(i, v) = i * |V| + v      ->  RankValue(expr=RankArith(...))\n    Post_{i+1,v} = Post_{i,v} . (Fin_{i,v} . i)\n\nand what max-flow's ``D_{0, u : u = s} = |V|`` needs (a shape symbol in\nvalue position).\n\nA rank value is always present: every point of the iteration space\nyields a coordinate, so the operand's existence predicate is True\neverywhere. Its \"empty value\" is therefore never consulted.\n\nRelationship to ``stopping.RankExpressionValue``: same idea, different\nunion. That one wraps a ``RankExpression`` for the stopping-condition\n``ValueExpression`` union; this one wraps it for the expression tree.\nThey are kept separate for the same reason D22 keeps the two predicate\nunions separate -- the surrounding operand vocabularies differ.",
+      "properties": {
+        "kind": {
+          "const": "rank_value",
+          "default": "rank_value",
+          "title": "Kind",
+          "type": "string"
+        },
+        "expr": {
+          "discriminator": {
+            "mapping": {
+              "arith": "#/$defs/RankArith",
+              "func": "#/$defs/RankFunction",
+              "literal": "#/$defs/RankConstantLiteral",
+              "shape_sym": "#/$defs/RankConstantShapeSym",
+              "var": "#/$defs/RankVariable"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RankVariable"
+            },
+            {
+              "$ref": "#/$defs/RankConstantLiteral"
+            },
+            {
+              "$ref": "#/$defs/RankConstantShapeSym"
+            },
+            {
+              "$ref": "#/$defs/RankArith"
+            },
+            {
+              "$ref": "#/$defs/RankFunction"
+            }
+          ],
+          "title": "Expr"
+        }
+      },
+      "required": [
+        "expr"
+      ],
+      "title": "RankValue",
+      "type": "object"
+    },
+    "RankVariable": {
+      "additionalProperties": false,
+      "description": "A bare rank variable in an iteration spec or tensor projection.\n\nPer the grammar production:\n    <rank-variable> := /[a-z]+/ /[A-Za-z0-9]*/\n\nLowercase start, then any alphanumerics. So \"m\", \"k\", \"sm\", \"dm\" are\nall valid. Distinct from rank names (uppercase, used in tensor\ndeclarations). Even when the same letter is used (e.g., a tensor\nrank named M with a rank variable also written m), the IR keeps\nthem as separate concepts.",
+      "properties": {
+        "kind": {
+          "const": "var",
+          "default": "var",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[a-z]+[A-Za-z0-9]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "RankVariable",
+      "type": "object"
+    },
+    "ReduceSpec": {
+      "additionalProperties": false,
+      "description": "Reduce action: collapse the reduced ranks using compute_op, with\nmerge_op handling the empty-value cases.\n\nPer paper Section 6.5. The label optionally links this spec to a binary\noperation; `None` means the reduce applies to the whole right-hand side,\nwhich is the single-operand case (`N_{i,d} = SN_{i,s,d} :: reduce`).\nReduce's own operands are the reduction state and the map temporary, so\nit never structurally requires a binary. The rank_list is optional:\nwhen omitted, the reduced set\nis derived as the iteration ranks that do not appear in the output\n(reduce keeps one reduction state per output coordinate). It is kept\nrather than always derived because an opaque output RVE (e.g.\nf(a, w)) can make the set non-derivable; when supplied, the Layer 2\nvalidator cross-checks it and hints on mismatch.",
+      "properties": {
+        "kind": {
+          "const": "reduce",
+          "default": "reduce",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "rank_list": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rank List"
+        },
+        "compute_op": {
+          "discriminator": {
+            "mapping": {
+              "builtin": "#/$defs/BuiltinComputeOp",
+              "user_defined": "#/$defs/UserDefinedComputeOp"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BuiltinComputeOp"
+            },
+            {
+              "$ref": "#/$defs/UserDefinedComputeOp"
+            }
+          ],
+          "title": "Compute Op"
+        },
+        "merge_op": {
+          "discriminator": {
+            "mapping": {
+              "builtin": "#/$defs/BuiltinMergeOp",
+              "user_defined": "#/$defs/UserDefinedMergeOp"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BuiltinMergeOp"
+            },
+            {
+              "$ref": "#/$defs/UserDefinedMergeOp"
+            }
+          ],
+          "title": "Merge Op"
+        }
+      },
+      "required": [
+        "compute_op",
+        "merge_op"
+      ],
+      "title": "ReduceSpec",
+      "type": "object"
+    },
+    "SetMembership": {
+      "additionalProperties": false,
+      "description": "A coordinate expression is in (or not in) a coordinate set.\n\n`member` is the coordinate-valued thing being tested (typically a\nRankVariable like \"s\", but admits any RankExpression \u2014 e.g. RankArith\n\"s+1\" or RankFunction \"f(s)\" \u2014 so the predicate can carry shifted\nor function-mapped membership tests).\n\n`coord_set` is any CoordinateSet variant: an explicit enum, an\ninterval, an alias to another tensor's rank, or a named runtime set\n(CoordSetName) the host supplies at execution time.\n\n`negated=False` means \u2208; `negated=True` means \u2209.",
+      "properties": {
+        "kind": {
+          "const": "set_membership",
+          "default": "set_membership",
+          "title": "Kind",
+          "type": "string"
+        },
+        "member": {
+          "discriminator": {
+            "mapping": {
+              "arith": "#/$defs/RankArith",
+              "func": "#/$defs/RankFunction",
+              "literal": "#/$defs/RankConstantLiteral",
+              "shape_sym": "#/$defs/RankConstantShapeSym",
+              "var": "#/$defs/RankVariable"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RankVariable"
+            },
+            {
+              "$ref": "#/$defs/RankConstantLiteral"
+            },
+            {
+              "$ref": "#/$defs/RankConstantShapeSym"
+            },
+            {
+              "$ref": "#/$defs/RankArith"
+            },
+            {
+              "$ref": "#/$defs/RankFunction"
+            }
+          ],
+          "title": "Member"
+        },
+        "coord_set": {
+          "discriminator": {
+            "mapping": {
+              "alias": "#/$defs/CoordSetAlias",
+              "enum": "#/$defs/CoordSetEnum",
+              "interval": "#/$defs/CoordSetInterval",
+              "named": "#/$defs/CoordSetName"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CoordSetEnum"
+            },
+            {
+              "$ref": "#/$defs/CoordSetInterval"
+            },
+            {
+              "$ref": "#/$defs/CoordSetAlias"
+            },
+            {
+              "$ref": "#/$defs/CoordSetName"
+            }
+          ],
+          "title": "Coord Set"
+        },
+        "negated": {
+          "default": false,
+          "title": "Negated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "member",
+        "coord_set"
+      ],
+      "title": "SetMembership",
+      "type": "object"
+    },
+    "StoppingCondition": {
+      "additionalProperties": false,
+      "description": "A stopping condition for a nested cascade.\n\nHalts iteration over the named generational rank when the\npredicate holds. The rank_variable is always explicit (the\nlowering pass resolves any shorthand from input).\n\nPer paper Section 7.3.1, when a stopping condition is present, the\ndefault generational-rank-variable is \"i\", with initial value 0.",
+      "properties": {
+        "rank_variable": {
+          "pattern": "^[a-z]+[A-Za-z0-9]*$",
+          "title": "Rank Variable",
+          "type": "string"
+        },
+        "predicate": {
+          "discriminator": {
+            "mapping": {
+              "comparison": "#/$defs/Comparison",
+              "diamond_boolean_app": "#/$defs/DiamondBooleanApp"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Comparison"
+            },
+            {
+              "$ref": "#/$defs/DiamondBooleanApp"
+            }
+          ],
+          "title": "Predicate"
+        }
+      },
+      "required": [
+        "rank_variable",
+        "predicate"
+      ],
+      "title": "StoppingCondition",
+      "type": "object"
+    },
+    "TensorDeclaration": {
+      "additionalProperties": false,
+      "description": "A complete tensor declaration.\n\nMaps to the grammar production:\n    <tensor-name>^<shape-definition> -> <data-type>, empty=<empty-value>\n\nScalars (0-rank tensors) are valid per paper Section 6: a scalar is a\nfunction from the singleton coordinate space {()} to the non-empty\ndata space. This is why ranks has no min_length constraint.\n\nThe empty_value is opaque from the IR's perspective. For builtin\ntypes, the evaluator will check that empty_value is a Python int,\nfloat, or bool. For user-defined types, the registered\nimplementation is responsible for validating empty_value. This\ndeferral keeps the IR pure data and lets the type system stay\nextensible.\n\nJSON encoding of non-finite floats: standard JSON has no Infinity\nor NaN literal, so float('inf'), float('-inf'), and float('nan')\nare serialized as the reserved strings \"inf\", \"-inf\", \"nan\" and\ndecoded back to the corresponding float on load. User-defined\ntypes must not use those exact strings as legitimate empty values.",
+      "properties": {
+        "name": {
+          "pattern": "^[A-Z][A-Za-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "ranks": {
+          "items": {
+            "$ref": "#/$defs/RankDeclaration"
+          },
+          "title": "Ranks",
+          "type": "array"
+        },
+        "data_type": {
+          "discriminator": {
+            "mapping": {
+              "builtin": "#/$defs/BuiltinDataType",
+              "user_defined": "#/$defs/UserDefinedDataType"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BuiltinDataType"
+            },
+            {
+              "$ref": "#/$defs/UserDefinedDataType"
+            }
+          ],
+          "title": "Data Type"
+        },
+        "empty_value": {
+          "title": "Empty Value"
+        },
+        "value": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "name",
+        "ranks",
+        "data_type",
+        "empty_value"
+      ],
+      "title": "TensorDeclaration",
+      "type": "object"
+    },
+    "TensorProjection": {
+      "additionalProperties": false,
+      "description": "A tensor name plus a list of rank expressions.\n\nPer the grammar:\n    <tensor-projection> := <tensor-name>_<rank-expression-list>\n\nIn math notation: A[m, k], B[k, n], Z[m, n]. The tensor name\nidentifies which tensor; the rank expressions tell you how\niteration variables map to coordinates of that tensor.\n\nFor scalars (0-rank tensors), the ranks list is empty. The\ngrammar permits this; the iteration spec for a scalar\nprojection has no iteration variables.",
+      "properties": {
+        "tensor": {
+          "pattern": "^[A-Z][A-Za-z0-9_]*$",
+          "title": "Tensor",
+          "type": "string"
+        },
+        "ranks": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "arith": "#/$defs/RankArith",
+                "func": "#/$defs/RankFunction",
+                "literal": "#/$defs/RankConstantLiteral",
+                "shape_sym": "#/$defs/RankConstantShapeSym",
+                "var": "#/$defs/RankVariable"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/RankVariable"
+              },
+              {
+                "$ref": "#/$defs/RankConstantLiteral"
+              },
+              {
+                "$ref": "#/$defs/RankConstantShapeSym"
+              },
+              {
+                "$ref": "#/$defs/RankArith"
+              },
+              {
+                "$ref": "#/$defs/RankFunction"
+              }
+            ]
+          },
+          "title": "Ranks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "tensor",
+        "ranks"
+      ],
+      "title": "TensorProjection",
+      "type": "object"
+    },
+    "TensorProjectionValue": {
+      "additionalProperties": false,
+      "description": "A tensor projection used as a value expression.\n\nWraps a TensorProjection to give it a `kind` discriminator for\nmembership in the ValueExpression union. Mirrors the InputTensor\npattern used in expr.py for the Expression union.",
+      "properties": {
+        "kind": {
+          "const": "tensor_value",
+          "default": "tensor_value",
+          "title": "Kind",
+          "type": "string"
+        },
+        "proj": {
+          "$ref": "#/$defs/TensorProjection"
+        }
+      },
+      "required": [
+        "proj"
+      ],
+      "title": "TensorProjectionValue",
+      "type": "object"
+    },
+    "UnaryApp": {
+      "additionalProperties": false,
+      "description": "A unary operator applied to an input tensor.\n\nPer the grammar:\n    <expression> := <unary-operator> <input-tensor>\n\nThe unary operator is either the built-in negation or a user-defined\nfunction. UnaryOp is defined in op.py.\n\nNote: the grammar restricts the unary's operand to <input-tensor>,\nnot arbitrary <expression>. This is a deliberate language constraint\n(per paper Section 5.5: unary functions are syntactic sugar for a\ndegenerate Map), and this field is typed to match it.\n\nAn anonymous tensor is NOT an escape hatch here -- `AnonymousTensor` is\nnot an `InputTensor`, so it is rejected in this field too. (An earlier\nversion of this docstring said otherwise; it was wrong, and the door it\nnamed does not exist.) To apply a unary to a sub-expression, name the\nsub-expression with its own Einsum and apply the unary to that tensor:\n\n    Diff_{v,xy} = L_{v,xy} . Lg_{xy} :: map -(intersect)\n    AD_{v,xy}   = abs(Diff_{v,xy})\n\nwhich is the paper-legal rewrite. Whether the language SHOULD admit\nunary-on-expression is an open question; the IR and the EBNF currently\nagree that it does not.",
+      "properties": {
+        "kind": {
+          "const": "unary",
+          "default": "unary",
+          "title": "Kind",
+          "type": "string"
+        },
+        "op": {
+          "discriminator": {
+            "mapping": {
+              "builtin": "#/$defs/BuiltinUnaryOp",
+              "user_defined": "#/$defs/UserDefinedUnaryOp"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BuiltinUnaryOp"
+            },
+            {
+              "$ref": "#/$defs/UserDefinedUnaryOp"
+            }
+          ],
+          "title": "Op"
+        },
+        "operand": {
+          "$ref": "#/$defs/InputTensor"
+        },
+        "merge_op": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "builtin": "#/$defs/BuiltinMergeOp",
+                  "user_defined": "#/$defs/UserDefinedMergeOp"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/BuiltinMergeOp"
+                },
+                {
+                  "$ref": "#/$defs/UserDefinedMergeOp"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Merge Op"
+        }
+      },
+      "required": [
+        "op",
+        "operand"
+      ],
+      "title": "UnaryApp",
+      "type": "object"
+    },
+    "UserDefinedComputeOp": {
+      "additionalProperties": false,
+      "description": "User-defined compute operator, identified by name.",
+      "properties": {
+        "kind": {
+          "const": "user_defined",
+          "default": "user_defined",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "UserDefinedComputeOp",
+      "type": "object"
+    },
+    "UserDefinedDataType": {
+      "additionalProperties": false,
+      "description": "A user-defined data type, identified by name.\n\nThe IR carries only the name. The actual implementation is provided\nby the user at runtime via a type registry. The host language is\nnot constrained: the implementation may be in Python, C, Rust, or\nany other language the user's binding mechanism supports. The IR\nis opaque to where the type's behavior lives.\n\nThe empty_value field on TensorDeclaration is opaque for user-defined\ntypes: it can be any JSON-representable value, and the registered\nimplementation is responsible for interpreting it.\n\nAnswering the note that used to sit here (\"we have to validate this in\nthe interpreter -- or do we need a second validator upstream, because I\ndon't want a compiler to have to deal with validation?\"): the upstream\ninstinct was right, and that second validator is the Layer 2 validator.\nLayer 1 (this Pydantic IR) checks structure only; Layer 2 runs after it\nand before ANY backend -- evaluator or compiler -- and does the\ncross-reference and type checks, including that an `empty_value` is a\nvalid instance of its declared `data_type`. See D14 (the derivations are\nshared so two backends cannot disagree) and `edge_ir/validator/README.md`.\nSo a compiler does not deal with validation; it consumes an\nalready-validated Program. The reference evaluator still fails loudly on\nanything Layer 2 has not yet been taught to catch, rather than guessing.",
+      "properties": {
+        "kind": {
+          "const": "user_defined",
+          "default": "user_defined",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "UserDefinedDataType",
+      "type": "object"
+    },
+    "UserDefinedMergeOp": {
+      "additionalProperties": false,
+      "description": "User-defined merge operator, identified by name.",
+      "properties": {
+        "kind": {
+          "const": "user_defined",
+          "default": "user_defined",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "UserDefinedMergeOp",
+      "type": "object"
+    },
+    "UserDefinedUnaryOp": {
+      "additionalProperties": false,
+      "description": "User-defined unary operator (e.g., AND-with-something, sqrt, etc.).",
+      "properties": {
+        "kind": {
+          "const": "user_defined",
+          "default": "user_defined",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "UserDefinedUnaryOp",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A complete EDGE program in IR form.\n\nPer the grammar:\n    <EDGE> := <declarations> <initializations> <main-edge>\n\nThe three sections together specify a complete EDGE computation:\ndeclarations name the tensors and their shapes, initialization sets\nup input tensor values, and the main edge specifies the computation.",
+  "properties": {
+    "declarations": {
+      "items": {
+        "$ref": "#/$defs/TensorDeclaration"
+      },
+      "minItems": 1,
+      "title": "Declarations",
+      "type": "array"
+    },
+    "initialization": {
+      "$ref": "#/$defs/Initialization"
+    },
+    "main_edge": {
+      "$ref": "#/$defs/MainEdge"
+    }
+  },
+  "required": [
+    "declarations",
+    "initialization",
+    "main_edge"
+  ],
+  "title": "Program",
+  "type": "object"
+}

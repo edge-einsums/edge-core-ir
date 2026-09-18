@@ -1,0 +1,8 @@
+{
+  "name": "P",
+  "ranks": [
+    {"name": "D", "shape": "|V|"}
+  ],
+  "data_type": {"kind": "builtin", "name": "bool"},
+  "empty_value": false
+}

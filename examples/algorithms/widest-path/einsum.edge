@@ -1,0 +1,16 @@
+dim N = 4;
+
+tensor G[R=N, C=N]   : float, empty = 0.0;   // edge capacities; 0 = no edge
+tensor F[gen I, R=N] : float, empty = 0.0;   // wavefront bottleneck values (cross-gen)
+tensor D[gen I, R=N] : float, empty = 0.0;   // best-known bottleneck, monotone (cross-gen)
+
+init G = [[0.0, 3.0, 5.0, 0.0],
+          [0.0, 0.0, 0.0, 3.0],
+          [0.0, 0.0, 0.0, 1.0],
+          [0.0, 0.0, 0.0, 0.0]];
+init F = [999.0, 0.0, 0.0, 0.0];             // generation 0: source = node 0 (unbounded)
+init D = [999.0, 0.0, 0.0, 0.0];
+
+F[i+1, d] = G[s,d] . F[i,s]   :: map(min, intersect) reduce(max, union);   // narrowest edge, widen
+D[i+1, d] = D[i,d] . F[i+1,d] :: map(max, union) reduce(max, union);       // keep the maximum
+stop: stable(D);

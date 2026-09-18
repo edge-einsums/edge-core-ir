@@ -1,0 +1,6 @@
+{
+  "name": 42,
+  "ranks": [{"name": "S"}],
+  "data_type": {"kind": "builtin", "name": "int"},
+  "empty_value": 0
+}

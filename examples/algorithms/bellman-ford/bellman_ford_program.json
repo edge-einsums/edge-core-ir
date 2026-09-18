@@ -1,0 +1,507 @@
+{
+  "declarations": [
+    {
+      "name": "G",
+      "ranks": [
+        {
+          "name": "S",
+          "shape": "|V|",
+          "coord_set": null,
+          "iterative": false
+        },
+        {
+          "name": "D",
+          "shape": "|V|",
+          "coord_set": null,
+          "iterative": false
+        }
+      ],
+      "data_type": {
+        "kind": "builtin",
+        "name": "int"
+      },
+      "empty_value": 0,
+      "value": null
+    },
+    {
+      "name": "C",
+      "ranks": [
+        {
+          "name": "I",
+          "shape": null,
+          "coord_set": null,
+          "iterative": false
+        },
+        {
+          "name": "S",
+          "shape": "|V|",
+          "coord_set": null,
+          "iterative": false
+        }
+      ],
+      "data_type": {
+        "kind": "builtin",
+        "name": "bool"
+      },
+      "empty_value": false,
+      "value": null
+    },
+    {
+      "name": "N",
+      "ranks": [
+        {
+          "name": "I",
+          "shape": null,
+          "coord_set": null,
+          "iterative": false
+        },
+        {
+          "name": "D",
+          "shape": "|V|",
+          "coord_set": null,
+          "iterative": false
+        }
+      ],
+      "data_type": {
+        "kind": "builtin",
+        "name": "int"
+      },
+      "empty_value": "inf",
+      "value": null
+    },
+    {
+      "name": "NewlyRelaxed",
+      "ranks": [
+        {
+          "name": "I",
+          "shape": null,
+          "coord_set": null,
+          "iterative": false
+        },
+        {
+          "name": "D",
+          "shape": "|V|",
+          "coord_set": null,
+          "iterative": false
+        }
+      ],
+      "data_type": {
+        "kind": "builtin",
+        "name": "int"
+      },
+      "empty_value": "inf",
+      "value": null
+    },
+    {
+      "name": "D",
+      "ranks": [
+        {
+          "name": "I",
+          "shape": null,
+          "coord_set": null,
+          "iterative": false
+        },
+        {
+          "name": "S",
+          "shape": "|V|",
+          "coord_set": null,
+          "iterative": false
+        }
+      ],
+      "data_type": {
+        "kind": "builtin",
+        "name": "int"
+      },
+      "empty_value": "inf",
+      "value": null
+    },
+    {
+      "name": "Lit_0",
+      "ranks": [],
+      "data_type": {
+        "kind": "builtin",
+        "name": "int"
+      },
+      "empty_value": null,
+      "value": 0
+    }
+  ],
+  "initialization": {
+    "einsums": [
+      {
+        "output_tensor": "D",
+        "output_ranks": [
+          {
+            "kind": "literal",
+            "value": 0
+          },
+          {
+            "kind": "var",
+            "name": "s"
+          }
+        ],
+        "expression": {
+          "kind": "input",
+          "proj": {
+            "tensor": "Lit_0",
+            "ranks": []
+          }
+        },
+        "specs": [],
+        "predicates": [
+          {
+            "kind": "set_membership",
+            "member": {
+              "kind": "var",
+              "name": "s"
+            },
+            "coord_set": {
+              "kind": "named",
+              "name": "root_id"
+            },
+            "negated": false
+          }
+        ]
+      }
+    ]
+  },
+  "main_edge": {
+    "cascade": {
+      "einsums": [
+        {
+          "output_tensor": "N",
+          "output_ranks": [
+            {
+              "kind": "var",
+              "name": "i"
+            },
+            {
+              "kind": "var",
+              "name": "d"
+            }
+          ],
+          "expression": {
+            "kind": "binary",
+            "label": 1,
+            "lhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "G",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "s"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "d"
+                  }
+                ]
+              }
+            },
+            "rhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "D",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "i"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "s"
+                  }
+                ]
+              }
+            }
+          },
+          "specs": [
+            {
+              "kind": "map",
+              "label": 1,
+              "rank_list": [
+                "s"
+              ],
+              "compute_op": {
+                "kind": "builtin",
+                "symbol": "+"
+              },
+              "merge_op": {
+                "kind": "builtin",
+                "symbol": "intersect"
+              }
+            },
+            {
+              "kind": "reduce",
+              "label": 1,
+              "rank_list": [
+                "s"
+              ],
+              "compute_op": {
+                "kind": "user_defined",
+                "name": "min"
+              },
+              "merge_op": {
+                "kind": "builtin",
+                "symbol": "union"
+              }
+            }
+          ],
+          "predicates": []
+        },
+        {
+          "output_tensor": "C",
+          "output_ranks": [
+            {
+              "kind": "var",
+              "name": "i"
+            },
+            {
+              "kind": "var",
+              "name": "d"
+            }
+          ],
+          "expression": {
+            "kind": "binary",
+            "label": 1,
+            "lhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "N",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "i"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "d"
+                  }
+                ]
+              }
+            },
+            "rhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "D",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "i"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "d"
+                  }
+                ]
+              }
+            }
+          },
+          "specs": [
+            {
+              "kind": "map",
+              "label": 1,
+              "rank_list": [
+                "d"
+              ],
+              "compute_op": {
+                "kind": "user_defined",
+                "name": "less_than"
+              },
+              "merge_op": {
+                "kind": "builtin",
+                "symbol": "union"
+              }
+            }
+          ],
+          "predicates": []
+        },
+        {
+          "output_tensor": "NewlyRelaxed",
+          "output_ranks": [
+            {
+              "kind": "var",
+              "name": "i"
+            },
+            {
+              "kind": "var",
+              "name": "d"
+            }
+          ],
+          "expression": {
+            "kind": "binary",
+            "label": 1,
+            "lhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "C",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "i"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "d"
+                  }
+                ]
+              }
+            },
+            "rhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "N",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "i"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "d"
+                  }
+                ]
+              }
+            }
+          },
+          "specs": [
+            {
+              "kind": "map",
+              "label": 1,
+              "rank_list": [
+                "d"
+              ],
+              "compute_op": {
+                "kind": "user_defined",
+                "name": "take_right"
+              },
+              "merge_op": {
+                "kind": "builtin",
+                "symbol": "intersect"
+              }
+            }
+          ],
+          "predicates": []
+        },
+        {
+          "output_tensor": "D",
+          "output_ranks": [
+            {
+              "kind": "arith",
+              "op": "+",
+              "lhs": {
+                "kind": "var",
+                "name": "i"
+              },
+              "rhs": {
+                "kind": "literal",
+                "value": 1
+              }
+            },
+            {
+              "kind": "var",
+              "name": "d"
+            }
+          ],
+          "expression": {
+            "kind": "binary",
+            "label": 1,
+            "lhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "D",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "i"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "d"
+                  }
+                ]
+              }
+            },
+            "rhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "NewlyRelaxed",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "i"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "d"
+                  }
+                ]
+              }
+            }
+          },
+          "specs": [
+            {
+              "kind": "map",
+              "label": 1,
+              "rank_list": [
+                "d"
+              ],
+              "compute_op": {
+                "kind": "user_defined",
+                "name": "update"
+              },
+              "merge_op": {
+                "kind": "builtin",
+                "symbol": "union"
+              }
+            }
+          ],
+          "predicates": []
+        }
+      ],
+      "stopping_conditions": [
+        {
+          "rank_variable": "i",
+          "predicate": {
+            "kind": "comparison",
+            "lhs": {
+              "kind": "tensor_value",
+              "proj": {
+                "tensor": "D",
+                "ranks": [
+                  {
+                    "kind": "arith",
+                    "op": "+",
+                    "lhs": {
+                      "kind": "var",
+                      "name": "i"
+                    },
+                    "rhs": {
+                      "kind": "literal",
+                      "value": 1
+                    }
+                  }
+                ]
+              }
+            },
+            "op": "==",
+            "rhs": {
+              "kind": "tensor_value",
+              "proj": {
+                "tensor": "D",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "i"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "iterative_rank": null
+    }
+  }
+}

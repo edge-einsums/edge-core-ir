@@ -1,0 +1,20 @@
+# BFS (depth / distance) -- ASCII surface form of einsum.md
+# from convos with Claude AI
+
+- Tensors
+G^{S = |V|, D = |V|} -> integer, empty = 0
+F^{I, S = |V|}       -> integer, empty = inf
+T^{I, D = |V|}       -> integer, empty = inf
+P^{I, D = |V|}       -> Boolean, empty = False
+
+- Initialization
+G  -> <user-specified>
+id -> <user-specified>          # coordinate set of the same type as rank S in F
+F_{0, s : s in id} = 0
+P_{0, d : d in id} = True
+
+- Extended Einsum
+T_{i, d}   = G_{s, d} . F_{i, s}     :: /\_s +(∩) \/_s ANY(∪)
+F_{i+1, d} = T_{i, d} . not P_{i, d} :: /\_d <-(∩)
+P_{i+1, d} = P_{i, d} . F_{i+1, d}   :: /\_d OR(∪)
+<> : ||F_{i+1}|| == 0

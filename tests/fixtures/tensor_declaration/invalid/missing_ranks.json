@@ -1,0 +1,5 @@
+{
+  "name": "G",
+  "data_type": {"kind": "builtin", "name": "int"},
+  "empty_value": 0
+}

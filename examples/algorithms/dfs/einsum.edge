@@ -1,0 +1,38 @@
+# DFS (order-stamped value encoding) -- ASCII surface form of einsum.md
+# from convos with Claude AI
+
+- Tensors
+G^{S = |V|, D = |V|} -> Boolean, empty = False
+S^{I, V = |V|}       -> integer, empty = -1
+P^{I, V = |V|}       -> Boolean, empty = False
+F^{I, V = |V|}       -> integer, empty = -1
+N^{I, D = |V|}       -> Boolean, empty = False
+U^{I, D = |V|}       -> Boolean, empty = False
+T^{I, V = |V|}       -> integer, empty = -1
+S'^{I, V = |V|}      -> integer, empty = -1
+
+- Stamp                 # order-stamped value encoding
+sigma(i, v) = i * |V| + v       # stateless lexicographic, a function of the iteration point
+
+- Initialization        # root = vertex 0
+G       -> <user-specified>
+root_id -> <user-specified>     # coordinate set over rank V
+S_{0, v : v in root_id} = sigma(0, v)
+P_{0, v : v in root_id} = True
+
+- Extended Einsum        # one pop+expand per iteration i
+# (1) PEEK
+F_{i, v*}  = S_{i, v}               :: <<<_{v*} 1(select-max-val)
+# (2) ADV
+N_{i, d}   = G_{s, d} . F_{i, s}    :: /\ <-(∩) \/ ANY(∪)
+# (3) MASK
+U_{i, d}   = N_{i, d} . not P_{i, d} :: /\ <-(∩)
+# (4a) POP
+T_{i, v}   = S_{i, v} . not F_{i, v} :: /\ <-(∩)
+# (4b) STAMP
+S'_{i, v}  = U_{i, v} . sigma(i+1, v) :: /\ ->(∩)
+# (4c) PUSH
+S_{i+1, v} = T_{i, v} . S'_{i, v}   :: /\ <<(∪)
+# (5) VISIT
+P_{i+1, v} = P_{i, v} . S'_{i, v}   :: /\ OR(∪)
+<> : ||S_{i+1}|| == 0

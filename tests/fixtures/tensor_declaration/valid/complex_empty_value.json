@@ -1,0 +1,8 @@
+{
+  "name": "State",
+  "ranks": [
+    {"name": "N"}
+  ],
+  "data_type": {"kind": "user_defined", "name": "BFSEntry"},
+  "empty_value": {"depth": -1, "parent": -1}
+}

@@ -1,0 +1,191 @@
+{
+  "declarations": [
+    {
+      "name": "G",
+      "ranks": [
+        {
+          "name": "R",
+          "shape": "N",
+          "coord_set": null,
+          "iterative": false
+        },
+        {
+          "name": "C",
+          "shape": "N",
+          "coord_set": null,
+          "iterative": false
+        }
+      ],
+      "data_type": {
+        "kind": "builtin",
+        "name": "float"
+      },
+      "empty_value": 0.0,
+      "value": null
+    },
+    {
+      "name": "L",
+      "ranks": [
+        {
+          "name": "I",
+          "shape": null,
+          "coord_set": null,
+          "iterative": false
+        },
+        {
+          "name": "R",
+          "shape": "N",
+          "coord_set": null,
+          "iterative": false
+        }
+      ],
+      "data_type": {
+        "kind": "builtin",
+        "name": "float"
+      },
+      "empty_value": 0.0,
+      "value": null
+    }
+  ],
+  "initialization": {
+    "einsums": []
+  },
+  "main_edge": {
+    "cascade": {
+      "einsums": [
+        {
+          "output_tensor": "L",
+          "output_ranks": [
+            {
+              "kind": "arith",
+              "op": "+",
+              "lhs": {
+                "kind": "var",
+                "name": "i"
+              },
+              "rhs": {
+                "kind": "literal",
+                "value": 1
+              }
+            },
+            {
+              "kind": "var",
+              "name": "d"
+            }
+          ],
+          "expression": {
+            "kind": "binary",
+            "label": 1,
+            "lhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "G",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "s"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "d"
+                  }
+                ]
+              }
+            },
+            "rhs": {
+              "kind": "input",
+              "proj": {
+                "tensor": "L",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "i"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "s"
+                  }
+                ]
+              }
+            }
+          },
+          "specs": [
+            {
+              "kind": "map",
+              "label": 1,
+              "rank_list": [
+                "s"
+              ],
+              "compute_op": {
+                "kind": "builtin",
+                "symbol": "*"
+              },
+              "merge_op": {
+                "kind": "builtin",
+                "symbol": "intersect"
+              }
+            },
+            {
+              "kind": "reduce",
+              "label": 1,
+              "rank_list": [
+                "s"
+              ],
+              "compute_op": {
+                "kind": "user_defined",
+                "name": "max"
+              },
+              "merge_op": {
+                "kind": "builtin",
+                "symbol": "union"
+              }
+            }
+          ],
+          "predicates": []
+        }
+      ],
+      "stopping_conditions": [
+        {
+          "rank_variable": "i",
+          "predicate": {
+            "kind": "comparison",
+            "lhs": {
+              "kind": "tensor_value",
+              "proj": {
+                "tensor": "L",
+                "ranks": [
+                  {
+                    "kind": "arith",
+                    "op": "+",
+                    "lhs": {
+                      "kind": "var",
+                      "name": "i"
+                    },
+                    "rhs": {
+                      "kind": "literal",
+                      "value": 1
+                    }
+                  }
+                ]
+              }
+            },
+            "op": "==",
+            "rhs": {
+              "kind": "tensor_value",
+              "proj": {
+                "tensor": "L",
+                "ranks": [
+                  {
+                    "kind": "var",
+                    "name": "i"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "iterative_rank": null
+    }
+  }
+}

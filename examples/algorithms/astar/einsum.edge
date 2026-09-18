@@ -1,0 +1,55 @@
+# A* search (single-source, single-goal shortest path) -- ASCII surface form
+# from convos with Claude AI
+#
+# Lineage: Dijkstra with the pick ordered by f = g + h instead of g, plus a
+# precomputed Manhattan heuristic H and a goal-settled stop. H == 0 collapses
+# the pick to Dijkstra's. D always holds true distances (g); H only steers the pick.
+# Operator legend: <<< = populate; 1(...) = identity compute op;
+#   <-(take_left_only) = take_left compute over the take_left_only merge (paper ⊖l);
+#     abs(...) = unary abs.
+
+- Tensors
+# inputs
+G^{S = |V|, D = |V|}      -> integer, empty = inf     # edge weights
+L^{S = |V|, XY = 2}       -> integer, empty = inf     # each vertex's (x, y)
+goal^{S = |V|}            -> Boolean, empty = False   # one-hot target vertex
+# heuristic (computed once, no I rank)
+Lg^{XY = 2}               -> integer, empty = inf     # the goal's (x, y)
+AD^{S = |V|, XY = 2}      -> integer, empty = inf     # per-axis |vertex - goal|
+H^{S = |V|}               -> integer, empty = inf     # Manhattan distance to goal
+# search state (per round i)
+N^{I, D = |V|}            -> integer, empty = inf
+C^{I, D = |V|}            -> Boolean, empty = False
+NewlyRelaxed^{I, D = |V|} -> integer, empty = inf
+D^{I, S = |V|}            -> integer, empty = inf     # distances (the answer)
+Q^{I, S = |V|}            -> Boolean, empty = False   # queue membership
+DQ^{I, S = |V|}           -> integer, empty = inf     # distances of queued vertices (g)
+PQ^{I, S = |V|}           -> integer, empty = inf     # priority f = g + h
+M^{I, S = |V|}            -> integer, empty = inf     # one-hot min-f vertex (carries f)
+F^{I, S = |V|}            -> integer, empty = inf     # frontier carrying true g
+T^{I, D = |V|}            -> Boolean, empty = False   # queue minus picked vertex
+
+- Initialization
+G, L, goal -> <user-specified>
+root       -> <user-specified>          # source coordinate set over rank S
+D_{0, s : s in root} = 0
+Q_{0, s : s in root} = True
+
+- Heuristic setup        # computed once, no I rank
+Lg_{xy}    = L_{s,xy} . goal_s        :: /\_s <-(∩) \/_s ANY(∪)   # the goal's (x, y)
+AD_{v,xy}  = abs( L_{v,xy} . Lg_{xy} ) :: /\_xy -(∩)              # |vertex - goal| per axis
+H_{v}      = AD_{v,xy}                 :: \/_xy +(∪)              # sum over axes = Manhattan
+
+- Extended Einsum        # one vertex settled per iteration i
+DQ_{i, s}           = Q_{i, s} . D_{i, s}            :: /\_s ->(∩)
+PQ_{i, s}           = DQ_{i, s} . H_s                :: /\_s +(∩)             # f = g + h
+M_{i, s*}           = PQ_{i, s}                       :: <<<_s* 1(select-min-s)
+F_{i, s}            = M_{i, s} . D_{i, s}            :: /\_s ->(∩)            # carry true g
+N_{i, d}            = G_{s, d} . F_{i, s}            :: /\_s +(∩) \/_s min(∪)
+C_{i, d}            = N_{i, d} . D_{i, d}            :: /\_d <(∪)
+NewlyRelaxed_{i, d} = C_{i, d} . N_{i, d}            :: /\_d ->(∩)
+D_{i+1, d}          = D_{i, d} . NewlyRelaxed_{i, d} :: /\_d <<(∪)
+T_{i, d}            = Q_{i, d} . F_{i, d}            :: /\_d <-(take_left_only)
+Q_{i+1, d}          = T_{i, d} . C_{i, d}            :: /\_d OR(∪)
+# STOP: the picked vertex is the goal (both one-hot)
+<> : ||F_i . goal|| == 1

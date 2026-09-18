@@ -1,0 +1,8 @@
+{
+  "name": "L",
+  "ranks": [
+    {"name": "V"}
+  ],
+  "data_type": {"kind": "user_defined", "name": "VertexLabel"},
+  "empty_value": ""
+}

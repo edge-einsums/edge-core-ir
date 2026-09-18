@@ -1,0 +1,25 @@
+# Bellman-Ford (SSSP) -- ASCII surface form of einsum.md
+# from convos with Claude AI
+
+- Tensors
+G^{S = |V|, D = |V|}    -> integer, empty = 0
+C^{I, S = |V|}          -> Boolean, empty = False
+N^{I, D = |V|}          -> integer, empty = inf
+NewlyRelaxed^{I, D = |V|} -> integer, empty = inf
+D^{I, S = |V|}          -> integer, empty = inf
+
+- Initialization        # source = vertex 0
+G       -> <user-specified>
+root_id -> <user-specified>     # coordinate set over rank S
+D_{0, s : s in root_id} = 0
+
+- Extended Einsum        # one full relaxation round per iteration i
+# (1) RELAX
+N_{i, d}            = G_{s, d} . D_{i, s}           :: /\_s +(∩) \/_s min(∪)
+# (2) IMPROVE
+C_{i, d}            = N_{i, d} . D_{i, d}            :: /\_d <(∪)
+# (3) RECORD
+NewlyRelaxed_{i, d} = C_{i, d} . N_{i, d}            :: /\_d ->(∩)
+# (4) UPDATE
+D_{i+1, d}          = D_{i, d} . NewlyRelaxed_{i, d} :: /\_d <<(∪)
+<> : D_{i+1} == D_i
