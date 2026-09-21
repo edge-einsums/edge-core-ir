@@ -1,7 +1,5 @@
 # EDGE IR
 
-> *Created with the help of Claude Code.*
-
 EDGE IR is a typed intermediate representation and a reference evaluator for EDGE, a notation that expresses graph algorithms, linear algebra and deep learning as extended Einsums. A front end lowers an EDGE program into this IR. A back end, or the reference evaluator in this repository, consumes it.
 
 The notation is described in [The EDGE Language: Extended General Einsums for Graph Algorithms](https://arxiv.org/abs/2404.11591) (Odemuyiwa et al., arXiv:2404.11591).
