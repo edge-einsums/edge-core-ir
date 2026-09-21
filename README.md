@@ -42,7 +42,7 @@ print(depths)
 
 This prints `{0: 0, 1: 1, 3: 1, 2: 2}`. Vertex 0 is the root, vertices 1 and 3 are one hop away, and vertex 2 is two hops away.
 
-A serialized program is plain JSON. `examples/algorithms/bfs/bfs_program.json` is the same BFS program, and `schemas/program.schema.json` is the JSON Schema for any program.
+A serialized program is plain JSON or a pydantic Python file. `examples/algorithms/bfs/bfs_program.json` is the same BFS program, and `schemas/program.schema.json` is the JSON Schema for any program. All EDGE expressions must validate/meet the contract expressed by the program.schema.json file. Please file issues and make pull requests if you run into any issues or have requests. 
 
 ## Repository layout
 
@@ -76,12 +76,8 @@ python -m pytest  # tests only
 
 ## Attribution of the documents
 
-Claude Code helped write most of the documents here, and each one says how at the top.
-
 - *Created with the help of Claude Code.* means Claude Code produced the document.
-- *Toluwanimi Odemuyiwa, combined with the help of Claude Code.* means she wrote it with Claude Code's help.
-
-A document with no such line is her own writing.
+- *<Author Name>, combined with the help of Claude Code.* means the author authored it, but also incorporated some AI validation into the flow.
 
 ## License
 
