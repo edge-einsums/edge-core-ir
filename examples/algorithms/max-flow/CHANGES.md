@@ -53,7 +53,7 @@ Because `F` is now antisymmetric, outflow is already stored as negative
 entries on the reverse cells, so summing the column nets it off:
 
 ```
-E_{1,u} = F_{1,v,u} :: \/ +(∪)
+E_{1,v} = F_{1,u,v} :: \/ +(∪)
 ```
 
 `In` and `Out` existed only to compute in-minus-out on a non-antisymmetric
@@ -192,6 +192,38 @@ in the tutorial repo as `viz/verify_interp.js`.
 `empty_value` but `value: null`, so a consumer reading the JSON had no way to
 learn that `One` is 1. They now carry `value`. `VertexCount` still does not:
 `|V|` is graph data a host supplies alongside `G` and `C`.
+
+---
+
+### 13. Inflow reductions read their operand in declared order  (E03, E13)
+
+Both inflow sums were written with the operand's ranks swapped:
+
+```
+E_{1,u}      = F_{1,v,u}      :: \/ +(∪)
+InPush_{i,u} = delta_{i,v,u}  :: \/ +(∪)
+```
+
+They now read:
+
+```
+E_{1,v}      = F_{1,u,v}      :: \/ +(∪)
+InPush_{i,v} = delta_{i,u,v}  :: \/ +(∪)
+```
+
+**This computes exactly the same numbers** — it is a renaming of the two rank
+variables, and the interpreter replay across all 222 cascade steps is
+unchanged. What it fixes is the reading: inflow to a vertex is now expressed
+as "reduce over the source end of every edge into it", with `F` and `delta`
+indexed in their declared `(U, V)` order, rather than as an access that looks
+like a transpose but is not one. E14 (outflow) already read `delta_{i,u,v}`,
+so the three reductions now share one convention.
+
+The cost is a local naming clash: the vertex being summed into is named `v`
+in these two Einsums and `u` in most others. That is only a variable name —
+`E` and `InPush` are still declared with a single rank `U`, and every other
+Einsum still indexes them with `u`. Renaming the *rank* would move the clash
+rather than remove it, since `E` is read as `E_{i,u}` in E06, E11, E15 and E19.
 
 ---
 

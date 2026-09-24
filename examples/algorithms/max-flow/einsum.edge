@@ -1,6 +1,6 @@
 # Max-flow (push-relabel, full-edge) -- ASCII surface form of einsum.md
 #
-# Source of truth: Push_Relabel_Max_Flow.ipynb in the EDGE tutorial zoo
+# Source of truth: Push_Relabel_Max_Flow.ipynb
 # This artifact was rewritten to match the corrected tutorial cascade. See
 # CHANGES.md for what moved relative to the previous version and why.
 #
@@ -58,7 +58,7 @@ FS_{1, u, v} = S_u . C_{u, v} :: /\ *(∩)
 # E02: record the negative flow on the reverse edge: f(v,s) = -c(s,v)
 F_{1, u, v}  = FS_{1, u, v} . FS_{1, v, u} :: /\ -(∪)
 # E03: excess is net inflow; outflow is already stored as negative entries
-E_{1, u}     = F_{1, v, u} :: \/ +(∪)
+E_{1, v}     = F_{1, u, v} :: \/ +(∪)
 # E04: residual from the source is spent; the reverse edge gains capacity
 R_{1, u, v} = cases:
     0          if u = s
@@ -85,7 +85,7 @@ delta_{i, u, v} = (E_{i, u} .^1 R_{i, u, v})_{i, u, v} .^2 PushCand_{i, u, v} ::
 # E12: adjust flow on selected edges
 F_{i+1, u, v} = (F_{i, u, v} .^1 delta_{i, u, v})_{i, u, v} .^2 delta_{i, v, u} :: /\^1 +(∪) /\^2 -(∪)
 # E13: total new flow pushed into each vertex
-InPush_{i, u}  = delta_{i, v, u} :: \/ +(∪)
+InPush_{i, v}  = delta_{i, u, v} :: \/ +(∪)
 # E14: total flow pushed out of each vertex
 OutPush_{i, u} = delta_{i, u, v} :: \/ +(∪)
 # E15: add received / subtract sent flow to excess

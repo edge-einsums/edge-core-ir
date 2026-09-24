@@ -460,29 +460,32 @@ def test_max_flow_E02_flow_is_antisymmetric() -> None:
 
 
 def test_max_flow_E03_excess_is_net_inflow_in_one_reduction() -> None:
-    """E03: ``E_{1,u} = F_{1,v,u} :: OR +(union)``.
+    """E03: ``E_{1,v} = F_{1,u,v} :: OR +(union)``.
 
-    Because F is antisymmetric, summing the column (v,u) already nets the
-    outflow off -- outgoing flow is stored as negative entries on the
-    reverse cells. So excess needs one reduction, not an In/Out pair
-    followed by a subtraction.
+    Because F is antisymmetric, summing everything arriving at v already nets
+    the outflow off -- outgoing flow is stored as negative entries on the
+    reverse cells. So excess needs one reduction, not an In/Out pair followed
+    by a subtraction.
 
-    The reduced rank is v; u survives into the output.
+    F is read in its declared (U, V) order and the reduction runs over the
+    source end u; v survives into the output. Writing it the other way round
+    (``E_{1,u} = F_{1,v,u}`` reducing v) computes the same numbers but reads
+    as though F were transposed, which it is not.
     """
     einsum = _e(_load_program(), "E03")
     assert einsum.output_tensor == "E"
     assert einsum.output_ranks == [
         RankConstantLiteral(value=1),
-        RankVariable(name="u"),
+        RankVariable(name="v"),
     ]
     expr = einsum.expression
     assert isinstance(expr, BinaryApp)
     assert _tensor_of(expr.lhs) == "F"
-    # Column read: F_{1,v,u}, not F_{1,u,v}.
-    assert _ranks_of(expr.lhs)[1:] == [RankVariable(name="v"), RankVariable(name="u")]
+    # Declared order: F_{1,u,v}, with the source end reduced.
+    assert _ranks_of(expr.lhs)[1:] == [RankVariable(name="u"), RankVariable(name="v")]
     reduces = _reduce_specs(einsum)
     assert len(reduces) == 1
-    assert reduces[0].rank_list == ["v"]
+    assert reduces[0].rank_list == ["u"]
     assert reduces[0].compute_op == BuiltinComputeOp(symbol="+")
     assert reduces[0].merge_op == BuiltinMergeOp(symbol="union")
 
@@ -799,23 +802,29 @@ def test_max_flow_E12_flow_update_preserves_antisymmetry() -> None:
 
 
 def test_max_flow_E13_inpush_reduces_over_senders() -> None:
-    """E13: ``InPush_{i,u} = sum_v Delta_{i,v,u}`` -- flow arriving at u."""
+    """E13: ``InPush_{i,v} = sum_u Delta_{i,u,v}`` -- flow arriving at v.
+
+    Same convention as E03: inflow reduces over the source end, so Delta is
+    read in its declared (U, V) order.
+    """
     einsum = _e(_load_program(), "E13")
     assert einsum.output_tensor == "InPush"
+    assert einsum.output_ranks[-1] == RankVariable(name="v")
     expr = einsum.expression
     assert isinstance(expr, BinaryApp)
     assert _tensor_of(expr.lhs) == "Delta"
-    assert _ranks_of(expr.lhs)[1:] == [RankVariable(name="v"), RankVariable(name="u")]
+    assert _ranks_of(expr.lhs)[1:] == [RankVariable(name="u"), RankVariable(name="v")]
     reduces = _reduce_specs(einsum)
-    assert reduces[0].rank_list == ["v"]
+    assert reduces[0].rank_list == ["u"]
     assert reduces[0].compute_op == BuiltinComputeOp(symbol="+")
 
 
 def test_max_flow_E14_outpush_reduces_over_receivers() -> None:
     """E14: ``OutPush_{i,u} = sum_v Delta_{i,u,v}`` -- flow leaving u.
 
-    Same reduction as E13 with the operand transposed; that transposition
-    is the only difference between the two.
+    E13 and E14 read Delta identically, in declared (U, V) order; which end
+    is reduced is the only difference between them. E13 reduces the source
+    end u and keeps the head v; E14 reduces the head end v and keeps u.
     """
     einsum = _e(_load_program(), "E14")
     assert einsum.output_tensor == "OutPush"

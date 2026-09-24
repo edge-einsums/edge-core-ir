@@ -319,18 +319,26 @@ def build_max_flow() -> Program:
             ),
             specs=[map_spec(1, "-", "union")],
         ),
-        # E03: E_{1,u} = sum_v F_{1,v,u}
+        # E03: E_{1,v} = sum_u F_{1,u,v}
         #      excess is net inflow; outflow is already stored as negative
         #      entries, so no separate In/Out pair is needed.
+        #
+        #      F is read in its declared (U, V) order and the reduction runs
+        #      over the SOURCE end: "sum the flow on every edge whose head is
+        #      v". Writing it the other way round -- E_{1,u} = sum_v F_{1,v,u}
+        #      -- computes exactly the same numbers, but reads as though F were
+        #      transposed, which it is not. The cost is that the vertex is
+        #      named v here and u in most other einsums; the variable name is
+        #      local to the einsum and E's rank is still U either way.
         unary_reduce(
             "E",
-            [rc(1), rv("u")],
+            [rc(1), rv("v")],
             "F",
-            [rc(1), rv("v"), rv("u")],
+            [rc(1), rv("u"), rv("v")],
             "Zero",
             "+",
             "union",
-            ["v"],
+            ["u"],
         ),
         # E04 case lowering. The written order is
         #     0        if u = s
@@ -516,16 +524,19 @@ def build_max_flow() -> Program:
                 map_spec(2, "-", "union"),
             ],
         ),
-        # E13: InPush_{i,u} = sum_v Delta_{i,v,u}
+        # E13: InPush_{i,v} = sum_u Delta_{i,u,v}
+        #      Same convention as E03: inflow reduces over the source end, so
+        #      Delta is read in its declared (U, V) order. E14 below is outflow
+        #      and already reads Delta_{i,u,v}, reducing the head end.
         unary_reduce(
             "InPush",
-            [rv("i"), rv("u")],
+            [rv("i"), rv("v")],
             "Delta",
-            [rv("i"), rv("v"), rv("u")],
+            [rv("i"), rv("u"), rv("v")],
             "Zero",
             "+",
             "union",
-            ["v"],
+            ["u"],
         ),
         # E14: OutPush_{i,u} = sum_v Delta_{i,u,v}
         unary_reduce(

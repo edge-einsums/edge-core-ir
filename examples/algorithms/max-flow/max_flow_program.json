@@ -935,7 +935,7 @@
             },
             {
               "kind": "var",
-              "name": "u"
+              "name": "v"
             }
           ],
           "expression": {
@@ -952,11 +952,11 @@
                   },
                   {
                     "kind": "var",
-                    "name": "v"
+                    "name": "u"
                   },
                   {
                     "kind": "var",
-                    "name": "u"
+                    "name": "v"
                   }
                 ]
               }
@@ -987,7 +987,7 @@
               "kind": "reduce",
               "label": 1,
               "rank_list": [
-                "v"
+                "u"
               ],
               "compute_op": {
                 "kind": "builtin",
@@ -1933,7 +1933,7 @@
             },
             {
               "kind": "var",
-              "name": "u"
+              "name": "v"
             }
           ],
           "expression": {
@@ -1950,11 +1950,11 @@
                   },
                   {
                     "kind": "var",
-                    "name": "v"
+                    "name": "u"
                   },
                   {
                     "kind": "var",
-                    "name": "u"
+                    "name": "v"
                   }
                 ]
               }
@@ -1985,7 +1985,7 @@
               "kind": "reduce",
               "label": 1,
               "rank_list": [
-                "v"
+                "u"
               ],
               "compute_op": {
                 "kind": "builtin",

@@ -44,7 +44,7 @@ for the diff against the previous version of this artifact.
 | `init-T` | partial | T_{u:u=t} = true |
 | `E01` | exact | FS_{1,u,v} = S_u ⋅ C_{u,v} :: ⋀ *(∩) |
 | `E02` | exact | F_{1,u,v} = FS_{1,u,v} ⋅ FS_{1,v,u} :: ⋀ -(∪) |
-| `E03` | partial | E_{1,u} = F_{1,v,u} :: ⋁ +(∪) |
+| `E03` | partial | E_{1,v} = F_{1,u,v} :: ⋁ +(∪) |
 | `E04` | partial | R_{1,u,v} = case {0 if u=s; C_{v,u} if v=s ∧ u≠s; C_{u,v} otherwise} |
 | `E05` | exact | NST_u = ¬S_u ⋅ ¬T_u :: ⋀ AND(∩) |
 | `E06` | exact | Act_{i,u} = NST_u ⋅^1 (E_{i,u} ⋅^2 0)_{i,u} :: ⋀^1 ←(∩) ⋀^2 >(∩) |
@@ -54,7 +54,7 @@ for the diff against the previous version of this artifact.
 | `E10` | partial | PushCand_{i,u,v*} = Adm_{i,u,v} ⋘_{v*} 𝟙(pick-admissible-edge) |
 | `E11` | exact | delta_{i,u,v} = (E_{i,u} ⋅^1 R_{i,u,v})_{i,u,v} ⋅^2 PushCand_{i,u,v} :: ⋀^1 min(∩) ⋀^2 ←(∩) |
 | `E12` | exact | F_{i+1,u,v} = (F_{i,u,v} ⋅^1 delta_{i,u,v})_{i,u,v} ⋅^2 delta_{i,v,u} :: ⋀^1 +(∪) ⋀^2 -(∪) |
-| `E13` | partial | InPush_{i,u} = delta_{i,v,u} :: ⋁ +(∪) |
+| `E13` | partial | InPush_{i,v} = delta_{i,u,v} :: ⋁ +(∪) |
 | `E14` | partial | OutPush_{i,u} = delta_{i,u,v} :: ⋁ +(∪) |
 | `E15` | exact | E_{i+1,u} = (E_{i,u} ⋅^1 InPush_{i,u})_{i,u} ⋅^2 OutPush_{i,u} :: ⋀^1 +(∪) ⋀^2 -(∪) |
 | `E16` | exact | R_{i+1,u,v} = (R_{i,u,v} ⋅^1 delta_{i,u,v})_{i,u,v} ⋅^2 delta_{i,v,u} :: ⋀^1 -(∪) ⋀^2 +(∪) |

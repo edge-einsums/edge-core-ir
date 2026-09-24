@@ -47,7 +47,7 @@ FS_{1,u,v} &= S_u \cdot C_{u,v} :: \bigwedge *(\cap)
 && \text{...preflow to every edge out of the source: } f(s,v)=c(s,v) \\
 F_{1,u,v} &= FS_{1,u,v} \cdot FS_{1,v,u} :: \bigwedge -(\cup)
 && \text{...record the negative flow on the reverse edge: } f(v,s)=-c(s,v) \\
-E_{1,u} &= F_{1,v,u} :: \bigvee +(\cup)
+E_{1,v} &= F_{1,u,v} :: \bigvee +(\cup)
 && \text{...excess is net inflow; outflow is already stored as negative entries} \\
 R_{1,u,v} &=
 \begin{cases}
@@ -78,7 +78,7 @@ delta_{i,u,v} &= (E_{i,u} \cdot^1 R_{i,u,v})_{i,u,v} \cdot^2 PushCand_{i,u,v}
 F_{i+1,u,v} &= (F_{i,u,v} \cdot^1 delta_{i,u,v})_{i,u,v} \cdot^2 delta_{i,v,u}
 :: \bigwedge^1 +(\cup)\ \bigwedge^2 -(\cup)
 && \text{...adjust flow on selected edges} \\
-InPush_{i,u} &= delta_{i,v,u} :: \bigvee +(\cup)
+InPush_{i,v} &= delta_{i,u,v} :: \bigvee +(\cup)
 && \text{...total new flow pushed into each vertex} \\
 OutPush_{i,u} &= delta_{i,u,v} :: \bigvee +(\cup)
 && \text{...total flow pushed out of each vertex} \\
