@@ -22,6 +22,7 @@ from edge_ir.udf.decl import (
     UdfDecl,
     UdfImpl,
 )
+from edge_ir.udf.loader import UdfModuleDecl, register_from_module
 from edge_ir.udf.registry import FunctionRegistry
 
 __all__ = [
@@ -33,5 +34,7 @@ __all__ = [
     "UdfCategory",
     "UdfDecl",
     "UdfImpl",
+    "UdfModuleDecl",
     "default_registry",
+    "register_from_module",
 ]
