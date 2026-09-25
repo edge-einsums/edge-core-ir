@@ -18,7 +18,51 @@ def test_rank_name_rejects_lowercase() -> None:
 
 
 def test_rank_name_rejects_digits() -> None:
+    """A DECLARED rank name never contains digits.
+
+    This is what keeps declared and derived names distinguishable: if `S1`
+    were a legal declared name, it would be ambiguous with the outer tile
+    of `S`. Transform-produced ranks use the dotted form instead --
+    see REGEX_DERIVED_RANK_NAME.
+    """
     assert re.fullmatch(patterns.REGEX_RANK_NAME, "S1") is None
+
+
+def test_derived_rank_name_accepts_dotted() -> None:
+    assert re.fullmatch(patterns.REGEX_DERIVED_RANK_NAME, "K.1")
+    assert re.fullmatch(patterns.REGEX_DERIVED_RANK_NAME, "K.0")
+    assert re.fullmatch(patterns.REGEX_DERIVED_RANK_NAME, "ABC.12")
+
+
+def test_derived_rank_name_nests() -> None:
+    """Partitioning a derived rank again appends another suffix.
+
+    `K.1.0` is the inner tile of the outer tile of `K`, and the whole
+    partition path is readable from the name.
+    """
+    assert re.fullmatch(patterns.REGEX_DERIVED_RANK_NAME, "K.1.0")
+    assert re.fullmatch(patterns.REGEX_DERIVED_RANK_NAME, "K.1.0.1")
+
+
+def test_derived_rank_name_requires_a_suffix() -> None:
+    """An undotted name is declared, not derived -- the two are disjoint."""
+    assert re.fullmatch(patterns.REGEX_DERIVED_RANK_NAME, "K") is None
+    assert re.fullmatch(patterns.REGEX_RANK_NAME, "K.1") is None
+
+
+def test_derived_rank_name_rejects_malformed() -> None:
+    assert re.fullmatch(patterns.REGEX_DERIVED_RANK_NAME, "K.") is None
+    assert re.fullmatch(patterns.REGEX_DERIVED_RANK_NAME, "K.a") is None
+    assert re.fullmatch(patterns.REGEX_DERIVED_RANK_NAME, ".1") is None
+    assert re.fullmatch(patterns.REGEX_DERIVED_RANK_NAME, "k.1") is None
+
+
+def test_any_rank_name_accepts_both_forms() -> None:
+    assert re.fullmatch(patterns.REGEX_ANY_RANK_NAME, "K")
+    assert re.fullmatch(patterns.REGEX_ANY_RANK_NAME, "K.1")
+    assert re.fullmatch(patterns.REGEX_ANY_RANK_NAME, "K.1.0")
+    assert re.fullmatch(patterns.REGEX_ANY_RANK_NAME, "k") is None
+    assert re.fullmatch(patterns.REGEX_ANY_RANK_NAME, "K.a") is None
 
 
 def test_tensor_name_accepts_valid() -> None:

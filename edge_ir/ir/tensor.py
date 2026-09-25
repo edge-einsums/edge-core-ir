@@ -162,7 +162,9 @@ class CoordSetAlias(IRBase):
 
     kind: Literal["alias"] = "alias"
     tensor: str = Field(pattern=patterns.REGEX_TENSOR_NAME)
-    rank: str = Field(pattern=patterns.REGEX_RANK_NAME)
+    rank: str = Field(pattern=patterns.REGEX_ANY_RANK_NAME)
+    """Declared (`S`) or derived (`S.1`) -- a transform-produced rank can be
+    aliased just like a declared one."""
 
 
 class CoordSetName(IRBase):
@@ -209,7 +211,20 @@ class RankDeclaration(IRBase):
     default dense integer coords [0, shape) implied by shape.
     """
 
-    name: str = Field(pattern=patterns.REGEX_RANK_NAME)
+    name: str = Field(pattern=patterns.REGEX_ANY_RANK_NAME)
+    """The rank's name.
+
+    Either DECLARED (`K`, matching ``REGEX_RANK_NAME``) or DERIVED (`K.1`,
+    matching ``REGEX_DERIVED_RANK_NAME``) -- a rank a transform produced.
+    Partitioning `K` yields `K.1` and `K.0`; the dot marks the name as
+    generated, and nests, so `K.1.0` is the inner tile of the outer tile.
+
+    The name carries the provenance in a form that can be read back, but
+    it is still a string. A consumer that wants the partition tree as data
+    should parse it once at the boundary and keep it in its own fields
+    rather than re-parsing the name at each use.
+    """
+
     shape: int | str | None = None
     coord_set: CoordinateSet | None = None
     iterative: bool = False

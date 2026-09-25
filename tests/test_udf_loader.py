@@ -6,7 +6,12 @@ import textwrap
 
 import pytest
 
-from edge_ir.udf import UdfCategory, UdfModuleDecl, default_registry, register_from_module
+from edge_ir.udf import (
+    UdfCategory,
+    UdfModuleDecl,
+    default_registry,
+    register_from_module,
+)
 
 
 @pytest.fixture
