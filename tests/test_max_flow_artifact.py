@@ -92,7 +92,7 @@ EINSUM_INDEX = {
     "E14": 15,  # OutPush
     "E15": 16,  # E_{i+1}
     "E16": 17,  # R_{i+1}
-    "E17": 18,  # AdmPost_{i+1} (einsum.md: Adm_{i+1})
+    "E17": 18,  # AdmPost_{i+1}
     "E18": 19,  # HasAdm
     "E19": 20,  # Act_{i+1}
     "E20": 21,  # Rel
@@ -635,17 +635,28 @@ def test_max_flow_E19_binds_the_anonymous_operand_at_the_next_generation() -> No
     assert anon.ranks[0] == _i_plus_one()
 
 
-def test_max_flow_E06_reads_the_current_generation() -> None:
-    """E06 is the pre-push Act, reading ``E_{i}`` and writing ``Act_{i}``."""
+def test_max_flow_E06_seeds_the_loop_rather_than_running_in_it() -> None:
+    """E06 writes ``Act_{1}`` from ``E_{1}``: the first round's active set only.
+
+    It used to write ``Act_{i}`` and run every round, and it did not need to.
+    E19 computes ``Act_{i+1}`` from the excess the push produced, so from
+    round 2 onward E06 recomputed what E19 had already written the round
+    before -- identical on every comparable round of the CLRS instance, and a
+    single-assignment conflict on the same slice.
+
+    Pinned to generation 1 it seeds the loop: round 1 reads this, later
+    rounds read the previous round's E19.
+    """
     einsum = _e(_load_program(), "E06")
-    assert einsum.output_ranks[0] == RankVariable(name="i")
+    assert einsum.output_ranks[0] == RankConstantLiteral(value=1)
     expr = einsum.expression
     assert isinstance(expr, BinaryApp)
     anon = expr.rhs
     assert isinstance(anon, AnonymousTensor)
     inner = anon.expression
     assert isinstance(inner, BinaryApp)
-    assert _ranks_of(inner.lhs)[0] == RankVariable(name="i")
+    # reads the same generation it writes, so it is self-contained setup
+    assert _ranks_of(inner.lhs)[0] == RankConstantLiteral(value=1)
 
 
 def test_max_flow_E07_active_residual_takes_active_over_intersect() -> None:
@@ -721,14 +732,25 @@ def test_max_flow_E10_pushcand_is_a_populate_selecting_one_v_per_u() -> None:
 
     The selector is free to pick any admissible edge; correctness does not
     depend on which.
+
+    THE LOWERING MATCHES THE SURFACE, AND dfs. `1(name)` puts the 1 glyph in
+    the compute slot -- registered as `identity` -- and the parenthesised name
+    in the COORDINATE slot, which is the one that decides which v survives.
+    dfs lowers `1(select-max-val)` exactly so.
+
+    It was previously inverted here: `pick-admissible-edge` sat in the compute
+    slot, aliased to identity so it would behave like the 1 it displaced, and
+    `select-one-admissible-v` -- a name in no spec, no tutorial and no paper --
+    was invented for the coordinate slot. The specification names one
+    operator; so does the IR now.
     """
     einsum = _e(_load_program(), "E10")
     assert einsum.output_tensor == "PushCand"
     populates = _populate_specs(einsum)
     assert len(populates) == 1
     assert populates[0].rank_list == ["v"]
-    assert populates[0].compute_op == UserDefinedComputeOp(name="pick-admissible-edge")
-    assert populates[0].coord_op == CoordinateOp(name="select-one-admissible-v")
+    assert populates[0].compute_op == UserDefinedComputeOp(name="identity")
+    assert populates[0].coord_op == CoordinateOp(name="pick-admissible-edge")
 
 
 @pytest.mark.parametrize("spec_id", ["E03", "E10", "E13", "E14", "E18", "E22"])
@@ -885,17 +907,20 @@ def test_max_flow_E16_residual_update_mirrors_the_flow_update() -> None:
 
 
 def test_max_flow_E17_admissible_after_push_uses_the_new_residual() -> None:
-    """E17: ``Adm_{i+1} = R_{i+1} ->(intersect) Lbl_{i}``.
+    """E17: ``AdmPost_{i+1} = R_{i+1} ->(intersect) Lbl_{i}``.
 
     Recomputed because the push changed R -- this is the bulk-synchronous
     stand-in for a sequential read-after-write. Lbl is still generation i:
     no height has changed yet this round. take_right carries Lbl's Boolean.
 
-    The IR writes it to ``AdmPost``, not ``Adm``. This departs from
-    einsum.md. E09 writes ``Adm_{i+1}`` again in the next round, and an
-    Einsum's assignment only adds values, so a shared slice carries E17's
-    entries into that round's push. On the reference evaluator that let
-    the source push a negative amount before the split.
+    Writes ``AdmPost``, and so does einsum.md as of 2026-09; the two no
+    longer disagree. Sharing ``Adm`` was tried and reverted: E09 writes
+    ``Adm_{i+1}`` again in the next round, and an Einsum's assignment only
+    adds values, so a shared slice carried E17's entries into that round's
+    push and the source pushed a negative amount.
+
+    But the split is not a workaround for that -- see
+    test_max_flow_E17_is_not_the_next_rounds_E09 below.
     """
     einsum = _e(_load_program(), "E17")
     assert einsum.output_tensor == "AdmPost"
@@ -1063,20 +1088,29 @@ def test_max_flow_stateful_tensors_advance_exactly_one_generation() -> None:
         assert einsum.output_ranks[0] == _i_plus_one()
 
 
-def test_max_flow_act_is_computed_twice_per_round() -> None:
-    """Act appears at both i and i+1, and that duplication is meaningful.
+def test_max_flow_act_is_seeded_once_then_advanced_once_per_round() -> None:
+    """Act is written twice in the cascade, but only one of them is in the loop.
 
     Sequential code re-reads ``e(v)`` for free after a push. Bulk-synchronous
     execution has no such ordering, so the post-push active set must be
-    recomputed explicitly. E06 is the pre-push set that drives the push;
-    E19 is the post-push set that drives relabel and termination.
+    recomputed explicitly -- that is E19, and it runs every round.
+
+    The other write is E06, and it is a SEED: ``Act_{1}``, run once. It was
+    previously ``Act_{i}``, running every round and recomputing what E19 had
+    written the round before. Compare admissibility, where the two writes are
+    genuinely different quantities and both stay in the loop -- see
+    test_max_flow_E17_is_not_the_next_rounds_E09.
     """
     program = _load_program()
     act_writes = _einsum_by_output(_cascade_einsums(program), "Act")
     assert len(act_writes) == 2
     generations = [e.output_ranks[0] for e in act_writes]
-    assert RankVariable(name="i") in generations
-    assert _i_plus_one() in generations
+    assert RankConstantLiteral(value=1) in generations, "the seed"
+    assert _i_plus_one() in generations, "the loop-carried write"
+    assert RankVariable(name="i") not in generations, (
+        "nothing should write Act at a plain i any more; that was the "
+        "redundant recomputation"
+    )
 
 
 def test_max_flow_admissibility_is_computed_twice_per_round() -> None:
@@ -1123,3 +1157,52 @@ def test_max_flow_stops_when_no_vertex_is_active() -> None:
     assert predicate.lhs.operands[0].tensor == "Act"
     assert predicate.lhs.operands[0].ranks[0] == _i_plus_one()
     assert isinstance(predicate.rhs, TensorProjectionValue)
+
+
+def test_max_flow_E17_is_not_the_next_rounds_E09() -> None:
+    """Why ``AdmPost`` cannot be folded into ``Adm``, structurally.
+
+    The two Einsums look close enough that folding them is an obvious
+    suggestion, and ``Act`` really does fold that way -- E19 computes what
+    the next round's E06 would, so one of them is redundant. Admissibility
+    does not, for two reasons visible in the IR:
+
+    1. E09 reduces ``ActR`` (which carries the ``Act`` factor); E17 reads
+       ``R`` directly and has no ``Act`` factor at all.
+    2. E17 reads ``Lbl`` at generation ``i`` -- the heights BEFORE this
+       round's relabel -- while the next round's E09 reads ``Lbl`` at
+       ``i+1``, after it.
+
+    (2) is the one that cannot be engineered away. ``Lbl_{i+1}`` needs
+    ``D_{i+1}`` from E24, which needs ``Rel`` from E20, which needs
+    ``HasAdm`` from E18, which reads E17: a cycle. And it is not an
+    encoding accident -- the relabel test asks "at my CURRENT height, is
+    there anywhere left to push?", which is a different question from the
+    one asked after relabelling.
+
+    Empirically, on the CLRS instance, E17's output differs from the next
+    round's E09 output in all 11 comparable rounds.
+    """
+    einsums = _cascade_einsums(_load_program())
+    e09 = _e(_load_program(), "E09")
+    e17 = _e(_load_program(), "E17")
+
+    # 1. the Act factor is in one and not the other
+    assert _tensor_of(e09.expression.lhs) == "ActR"
+    assert _tensor_of(e17.expression.lhs) == "R"
+
+    # 2. both read Lbl at generation i, so E17's is the PRE-relabel Lbl
+    assert _ranks_of(e09.expression.rhs)[0] == RankVariable(name="i")
+    assert _ranks_of(e17.expression.rhs)[0] == RankVariable(name="i")
+
+    # ...and E17 writes i+1 while E09 writes i, which is what makes E17's
+    # operand a generation older than its output.
+    assert e09.output_ranks[0] == RankVariable(name="i")
+    assert e17.output_ranks[0] == _i_plus_one()
+
+    # The cycle: D_{i+1} is written after E17 in cascade order, so nothing
+    # at E17's position could have read Lbl_{i+1}.
+    outputs = [e.output_tensor for e in einsums]
+    assert outputs.index("AdmPost") < outputs.index("D"), (
+        "E17 runs before D_{i+1} is written, so Lbl_{i+1} cannot exist yet"
+    )

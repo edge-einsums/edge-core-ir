@@ -141,6 +141,35 @@ def _cmp(name: str) -> Any:
     return ops[name]
 
 
+def floor(value: Any) -> Any:
+    """``floor(x)`` -- round toward minus infinity. A UNARY operator.
+
+    The shape of this matters more than the arithmetic. Algorithm X's depth
+    extraction is written
+
+        d* = floor( F_{i,r} / |R| )  ::  \\/ max(U)
+
+    which is a *unary floor applied to a division*, and the division is
+    already a builtin (``BuiltinComputeOp.symbol`` admits ``/``). So the only
+    thing missing from the registry is the floor, and it is missing from the
+    UNARY category -- which had no entries at all.
+
+    ``maps_empty_to_empty`` is True, and that is a real claim rather than
+    boilerplate: it decides the merge the degenerate Map sugars into
+    (``take_left``, visiting only the operand's non-empty points). It holds
+    because floor fixes every integer, so whatever integer empty value the
+    operand declares, floor returns it unchanged -- it cannot manufacture a
+    present value where the operand had none.
+
+    Python's ``//`` and ``math.floor`` round toward minus infinity, which is
+    what a depth stamp wants and NOT what C-style truncation gives: for a
+    negative argument truncation rounds toward zero and lands a level above.
+    Stamps are non-negative in Algorithm X, which is exactly why this should
+    be pinned rather than left to whichever division a host happens to use.
+    """
+    return math.floor(value)
+
+
 ################################################################################
 # Coordinate operators
 ################################################################################
@@ -195,6 +224,68 @@ def _select(kind: str, extreme: str) -> Any:
         return actions
 
     return op
+
+
+def select_any(
+    fiber: Any, red_coord: Any, red_value: Any, *, ctx: PopulateContext
+) -> Any:
+    """``select-any`` -- keep ONE coordinate, and let any of them be it.
+
+    The ``select-{min,max}-*`` family ranks the candidates and keeps the
+    winner. Some algorithms have no ranking to apply: max-flow's
+    ``1(pick-admissible-edge)`` says *any* admissible edge, and Algorithm X
+    branches on *any* row covering the chosen column. Expressing those with a
+    ranking operator is a misstatement -- it makes the specification claim a
+    tie-break the algorithm does not have, and it samples the legal
+    executions with a bias, so a bug that appears only on some choices never
+    appears at all.
+
+    WHERE THE FREEDOM LIVES
+    -----------------------
+    Not in here. This operator is a pure function of the fiber it is handed:
+    **the first arrival wins, and nothing displaces it.** If the fiber already
+    holds a present coordinate, that one stays and the incoming RedTmp element
+    is dropped; if it is empty, the incoming coordinate is written.
+
+    The choice is then made by the ORDER the elements arrive in, which
+    ``Schedule`` owns: Populate is a fold over RedTmp elements handed out in
+    traversal order. Under ``SequentialSchedule`` a run is reproducible; under
+    ``ShuffledSchedule(seed=k)`` different seeds explore different legal
+    executions. That is the same division of labour ``any_of`` (``ANY``) uses
+    for reductions -- resolve deterministically, and let the randomized
+    iteration-order mode surface the freedom -- and it is what keeps the
+    operator itself order-independent.
+
+    A consequence worth stating plainly: a program using this operator IS
+    order-dependent, so ``check_order_independence`` will report its output as
+    differing between seeds. That is a true finding about the program, not a
+    defect in the evaluator. What such a program should assert is that every
+    seed yields a VALID answer, not the same one.
+    """
+    del red_value, ctx
+    incumbent = next((entry for entry in fiber if entry.present), None)
+
+    actions: list[tuple[Any, PopulateAction]] = []
+    if incumbent is None:
+        # Nothing held yet: the arrival takes the slot.
+        for entry in fiber:
+            actions.append(
+                (
+                    entry.coord,
+                    PopulateAction.WRITE
+                    if entry.coord == red_coord
+                    else PopulateAction.NONE,
+                )
+            )
+        # An assignment-style fiber may not enumerate the incoming coordinate.
+        if all(coord != red_coord for coord, _ in actions):
+            actions.append((red_coord, PopulateAction.WRITE))
+        return actions
+
+    # Something is already held. Keep exactly it, and leave every other
+    # coordinate alone -- NOT Delete, because nothing else is present anyway
+    # and Delete on an absent coordinate is not what the fiber update means.
+    return [(entry.coord, PopulateAction.NONE) for entry in fiber]
 
 
 ################################################################################
@@ -362,6 +453,30 @@ def default_registry() -> FunctionRegistry:
                     wants_context=True,
                     doc=f"keep the {extreme}imum {kind}; delete the rest",
                 )
+    # The unranked member of the same family: keep one, any one. Registered
+    # under the paper's hyphenated spelling and the underscore variant, as
+    # the select-* operators are.
+    for name in ("select-any", "select_any", "any-1"):
+        reg.register_python(
+            name,
+            UdfCategory.COORDINATE,
+            select_any,
+            arity=3,
+            wants_context=True,
+            doc="keep one coordinate, any one; the schedule decides which",
+        )
+
+    # -- unary -------------------------------------------------------------
+    # The first entry in this category. `not` is a BuiltinUnaryOp and never
+    # reaches the registry; floor is the first operator that has to.
+    reg.register_python(
+        "floor",
+        UdfCategory.UNARY,
+        floor,
+        arity=1,
+        maps_empty_to_empty=True,
+        doc="round toward minus infinity",
+    )
 
     # -- rank mapping ------------------------------------------------------
     reg.register_python("min", UdfCategory.RANK_MAPPING, min, arity=2, is_affine=False)

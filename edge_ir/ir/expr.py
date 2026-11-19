@@ -391,12 +391,39 @@ class RankValue(IRBase):
     expr: RankExpression
 
 
-# An Expression is one of the five above. Discriminated by "kind".
+class Occupancy(IRBase):
+    """``||T||``: how many non-empty entries a tensor holds, as a VALUE.
+
+    The paper writes occupancy in stopping conditions (``<> : ||F_{i+1}|| == 0``)
+    and the IR has carried it there as ``stopping.PropertyApp``. An Einsum
+    can need the same quantity mid-cascade -- exact cover's
+
+        Success_{i+1} = ||ActiveCol_{i+1}|| == 0
+
+    asks it of the columns left to cover -- and without a node for it the
+    Einsum has to be rewritten (an OR-reduction and a negation, through a
+    named intermediate), which changes what the author wrote.
+
+    ``operand`` is usually a PARTIAL projection: ``ActiveCol_{i+1}`` names
+    only the generational rank of ``ActiveCol^{I,C}``, and the count is over
+    the ranks it leaves free. Those free ranks are counted, not iterated, so
+    they are not axes of the Einsum. The subscripts it does give are read at
+    the current point, exactly as a stopping condition reads its own.
+
+    Like ``RankValue``, a count is always present: 0 is a value, not an
+    absence.
+    """
+
+    kind: Literal["occupancy"] = "occupancy"
+    operand: TensorProjection
+
+
+# An Expression is one of the six above. Discriminated by "kind".
 # This is recursive: BinaryApp.lhs and .rhs are Expressions; AnonymousTensor
 # also contains an Expression. Pydantic handles the recursion via the
 # `from __future__ import annotations` lazy evaluation at the top of the
 # file.
 Expression = Annotated[
-    InputTensor | UnaryApp | BinaryApp | AnonymousTensor | RankValue,
+    InputTensor | UnaryApp | BinaryApp | AnonymousTensor | RankValue | Occupancy,
     Field(discriminator="kind"),
 ]

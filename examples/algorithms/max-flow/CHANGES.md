@@ -258,3 +258,93 @@ Two things this cascade depends on that the IR does not record:
    list order rather than in any node.
 
 Both belong in the semantic model alongside the merge truth tables.
+
+---
+
+### 14. `AdmPost` is a second quantity, and the spec now names it  (E17, E18)
+
+The builder wrote E17's output to `AdmPost` while `einsum.md` still wrote
+`Adm_{i+1}`. That disagreement is resolved in the spec's favour of the
+builder: `AdmPost` is declared, and E17 and E18 name it.
+
+It was introduced as a workaround — E17 wrote `Adm_{i+1}`, the next round's
+E09 wrote the same slice, and because an assignment only adds values, E17's
+entries survived into that round's push. They included inactive vertices, the
+source among them, and edges to vertices that had just relabelled, so
+vertices pushed along edges the height rule no longer admitted.
+
+**But it is not a workaround, and that is why the spec adopts it rather than
+the builder reverting.** The two Einsums compute different quantities:
+
+```
+E09:  Adm_{i,u,v}      = ActR_{i,u,v} . Lbl_{i,u,v}  :: /\ AND(∩)
+E17:  AdmPost_{i+1,u,v} = R_{i+1,u,v} . Lbl_{i,u,v}  :: /\ ->(∩)
+```
+
+E09 is *admissible edges out of an ACTIVE vertex, at the current heights*.
+E17 is *edges still admissible by residual and height alone*, with no `Act`
+factor — and, decisively, it reads `Lbl_i`, the heights BEFORE this round's
+relabel, where next round's E09 reads `Lbl_{i+1}`, the heights after.
+
+Measured on the CLRS instance: E17's output and the next round's E09 output
+differ in **11 of 11** comparable rounds, because `Lbl_i` differs from
+`Lbl_{i+1}` in 9 of them (E24 relabels in 8). Contrast `Act`, where E19's
+output equals the next round's E06 output in **all 11** rounds — there the
+two really are redundant.
+
+And E17 cannot be made to read `Lbl_{i+1}`:
+
+    E17 -> E18 (HasAdm) -> E20 (Rel) -> E21..E23 -> E24 (D_{i+1}) -> Lbl_{i+1}
+
+`Lbl_{i+1}` needs `D_{i+1}`, which needs `Rel`, which needs E17. A cycle. Nor
+is this an encoding accident: the relabel test asks "at my CURRENT height, is
+there anywhere left to push? If not, raise it". Asked with post-relabel
+heights it is a different question.
+
+One thing that IS free: adding the `Act_{i+1}` factor to E17, to make it read
+in the same shape as E09, changes `Rel` in 0 of 11 rounds, because E20
+already intersects with `Act_{i+1}` and absorbs it. Not done — it would add a
+dependency and force a reorder for no change in meaning.
+
+So `Adm` and `AdmPost` are two tensors because they hold two things. The
+remaining single-assignment violations (`D`, `F`, `E`, `R`, `Act`) are
+unaffected by this entry.
+
+---
+
+### 15. `Act` is seeded once instead of recomputed every round  (E06)
+
+E06 was `Act_{i,u}`, in the loop. It is now `Act_{1,u}`, run once.
+
+E19 already computes `Act_{i+1,u}` from the excess the push produced, with the
+same formula. So from round 2 onward, E06 recomputed a value E19 had written
+the round before — verified **identical on all 11 comparable rounds** of the
+CLRS instance. It was also a single-assignment conflict: E19's `Act_{i+1}` and
+the next round's E06 `Act_{i+1}` are the same slice, with neither being a
+seed.
+
+Pinned to generation 1, E06 seeds the loop: round 1 reads it, later rounds
+read the previous round's E19. `E07` and the stopping condition are unaffected
+— they read `Act` at whatever generation is current.
+
+Effect on the driven run: **235 steps to 224**, 233 Einsum executions to 222.
+Same 12 generations, same maximum flow of 23, same 18 answer checks.
+
+**The validator finding did not disappear — it changed class.** Before:
+
+    cascade[7] writes Act[i, u] and cascade[20] writes Act[i+1, u]:
+      the rank i advances, so round i writes one and round i+1 the other
+
+After:
+
+    cascade[7] writes Act[1, u] and cascade[20] writes Act[i+1, u]:
+      the advancing rank passes through the constant generation
+
+That is the same pattern as `F`, `E`, `R` and `D`: a seed written at a literal
+generation inside the cascade, which the loop later writes at `i+1`. All five
+resolve together when initialization moves out of the cascade or writes
+generation 0, which is the remaining item. `Act` is no longer a separate
+problem.
+
+Contrast E17/E09 (entry 14): there the two writes compute genuinely different
+quantities, so neither is redundant and both stay in the loop.

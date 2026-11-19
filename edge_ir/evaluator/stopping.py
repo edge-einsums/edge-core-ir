@@ -186,6 +186,7 @@ def should_stop(
     generation: int,
     *,
     env: Environment,
+    outer: dict[str, Coordinate] | None = None,
 ) -> bool:
     """True when this condition halts the cascade after ``generation``.
 
@@ -193,7 +194,12 @@ def should_stop(
     completed -- so a predicate written over ``i+1`` reads the generation
     that generation produced.
     """
-    bound: dict[str, Coordinate] = {condition.rank_variable: generation}
+    # ``outer``: the iterative ranks of the cascades around an inner one
+    # (local patch), which the inner diamond may read.
+    bound: dict[str, Coordinate] = {
+        **(outer or {}),
+        condition.rank_variable: generation,
+    }
     empties = _comparison_empties(condition.predicate, env)
     return evaluate_predicate(
         condition.predicate, bound, env=env, empty_lhs=empties[0], empty_rhs=empties[1]

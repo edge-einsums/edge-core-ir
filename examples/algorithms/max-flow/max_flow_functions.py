@@ -2,26 +2,36 @@
 
 The IR carries operator names only; a FunctionRegistry gives them meaning
 (``edge_ir/udf/__init__.py``). The default registry already defines every
-compute operator this cascade uses except the two on E10::
+operator this cascade uses except the one on E10::
 
     PushCand_{i,u,v*} = Adm_{i,u,v} <<<_{v*} 1(pick-admissible-edge)
 
-which the builder encodes as a PopulateSpec with compute op
-``pick-admissible-edge`` and coordinate op ``select-one-admissible-v``.
+``1(name)`` puts the 1 glyph in the populate's COMPUTE slot -- ``identity``
+in the registry -- and the parenthesised name in the COORDINATE slot, the one
+that decides which ``v`` survives. dfs lowers ``1(select-max-val)`` the same
+way. So there is exactly one name to register, and it is the choice function:
 
-Both are registered here as aliases of existing default operators, so the
-max-flow run adds no new operator semantics to the evaluator:
+- ``pick-admissible-edge`` (coordinate) is ``select-any``. The specification
+  is the authority here, and it says ANY admissible edge -- ``einsum.md``
+  writes ``1(pick-admissible-edge)`` with no ranking, and ``pseudocode.md``
+  says "choose one such v using pick_admissible_edge". ``select-any`` is the
+  operator for exactly that: it ranks nothing and keeps whichever candidate
+  the schedule offers first.
 
-- ``pick-admissible-edge`` (populate compute) is ``identity``, the ASCII name
-  of the paper's 1 glyph. It writes the RedTmp value at the chosen
-  coordinate. E10's map carries Adm through unchanged, so that value is
-  ``True``, which is ``PushCand[i,u,v] <- true`` in ``pseudocode.md``.
-- ``select-one-admissible-v`` (coordinate) is ``select-min-coord``. Per fiber
-  ``(i, u)`` it keeps the admissible ``v`` with the smallest coordinate and
-  deletes any other. ``pseudocode.md`` says "choose one such v using
-  pick_admissible_edge" and ``einsum.md`` leaves the choice free, so any one
-  rule is valid. Smallest-coordinate makes the result independent of the
-  order Populate visits the candidates in.
+  It was previously ``select-min-coord``, a lowest-coordinate rule, chosen so
+  that the result would not depend on the order Populate visits candidates
+  in. That bought a property the specification does not promise, at the cost
+  of making the IR claim a tie-break the algorithm does not have -- and of
+  sampling the legal executions with a bias, so a bug that only shows up on
+  some choices would never show up at all.
+
+  The order-independence that DOES hold is about the ANSWER, not the route:
+  every traversal order reaches the same maximum flow. That is what
+  ``test_max_flow_reaches_the_same_answer_under_any_order`` asserts.
+
+This file previously registered a second name, ``select-one-admissible-v``,
+for the coordinate slot -- invented to fill it because ``pick-admissible-edge``
+had been put in the compute slot instead. It appeared in no specification.
 
 Import note: ``edge_ir.evaluator`` must be imported before ``edge_ir.udf``.
 The reverse order hits a circular import.
@@ -33,7 +43,6 @@ import edge_ir.evaluator  # noqa: F401  (must precede edge_ir.udf)
 from edge_ir.udf import FunctionRegistry, UdfCategory, UdfDecl, default_registry
 
 PICK_ADMISSIBLE_EDGE = "pick-admissible-edge"
-SELECT_ONE_ADMISSIBLE_V = "select-one-admissible-v"
 
 
 def _alias(
@@ -62,18 +71,12 @@ def max_flow_registry() -> FunctionRegistry:
     registry = default_registry()
     _alias(
         registry,
-        UdfCategory.POPULATE_COMPUTE,
-        "identity",
-        PICK_ADMISSIBLE_EDGE,
-        "E10 populate compute: write the RedTmp value (Adm's True) at the "
-        "chosen coordinate; alias of identity",
-    )
-    _alias(
-        registry,
         UdfCategory.COORDINATE,
-        "select-min-coord",
-        SELECT_ONE_ADMISSIBLE_V,
-        "E10 coordinate op: keep the admissible v with the smallest "
-        "coordinate in each (i, u) fiber; alias of select-min-coord",
+        "select-any",
+        PICK_ADMISSIBLE_EDGE,
+        "E10 coordinate op: keep one admissible v per (i, u) fiber, ANY one. "
+        "Alias of select-any, because einsum.md writes 1(pick-admissible-edge) "
+        "with no ranking. The route therefore varies with traversal order; "
+        "the answer does not.",
     )
     return registry

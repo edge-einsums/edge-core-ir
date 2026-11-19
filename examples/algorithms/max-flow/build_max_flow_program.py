@@ -388,21 +388,34 @@ def build_max_flow() -> Program:
             ),
             specs=[map_spec(1, "AND", "intersect")],
         ),
-        # E06: Act_{i,u} = NST_u <-(int) (E_{i,u} >(int) 0)_{i,u}
-        #      internal vertices with positive excess
+        # E06: Act_{1,u} = NST_u <-(int) (E_{1,u} >(int) 0)_{1,u}
+        #      internal vertices with positive excess, for the FIRST round only.
+        #
+        #      This used to be Act_{i,u} and run every round. It did not need
+        #      to: E19 already computes Act_{i+1} from the excess the push
+        #      produced, so from round 2 on, E06 recomputed a value E19 had
+        #      written in the round before -- verified identical on every
+        #      comparable round of the CLRS instance. It was also a single
+        #      assignment violation, because E19's Act_{i+1} and the next
+        #      round's E06 Act_{i+1} are the same slice.
+        #
+        #      Pinning it to generation 1 makes it seed the loop instead:
+        #      round 1 reads what this writes, and every later round reads
+        #      the previous round's E19. E07 and the stopping condition are
+        #      unaffected; they read Act at whatever generation is current.
         Einsum(
             output_tensor="Act",
-            output_ranks=[rv("i"), rv("u")],
+            output_ranks=[rc(1), rv("u")],
             expression=BinaryApp(
                 label=1,
                 lhs=inp("NST", rv("u")),
                 rhs=AnonymousTensor(
                     expression=BinaryApp(
                         label=2,
-                        lhs=inp("E", rv("i"), rv("u")),
+                        lhs=inp("E", rc(1), rv("u")),
                         rhs=inp("Zero"),
                     ),
-                    ranks=[rv("i"), rv("u")],
+                    ranks=[rc(1), rv("u")],
                 ),
             ),
             specs=[
@@ -473,11 +486,23 @@ def build_max_flow() -> Program:
             ),
             specs=[
                 map_spec(1, "take_left", "take_left"),
+                # `1(pick-admissible-edge)` lowers the way dfs's
+                # `1(select-max-val)` does: the 1 glyph is the populate
+                # COMPUTE op (registered as `identity`), and the name in
+                # parentheses is the COORDINATE op -- the choice function.
+                #
+                # This used to be the other way round: `pick-admissible-edge`
+                # sat in the compute slot, aliased to identity to behave like
+                # the 1 it displaced, and a name that appears in no spec --
+                # `select-one-admissible-v` -- was invented to fill the
+                # coordinate slot and aliased to select-min-coord. The
+                # specification names one operator; the IR now names the same
+                # one, in the slot that decides.
                 PopulateSpec(
                     label=1,
                     rank_list=["v"],
-                    compute_op=compute("pick-admissible-edge"),
-                    coord_op=CoordinateOp(name="select-one-admissible-v"),
+                    compute_op=compute("identity"),
+                    coord_op=CoordinateOp(name="pick-admissible-edge"),
                 ),
             ],
         ),

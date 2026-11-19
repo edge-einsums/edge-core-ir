@@ -95,6 +95,10 @@ def input_projections(expr: Expression) -> Iterator[TensorProjection]:
         # An anonymous tensor is not declared, so its own rank list gives no
         # coordinate set; its operands still do.
         yield from input_projections(expr.expression)
+    elif getattr(expr, "kind", None) == "cases":
+        for arm in expr.arms:
+            if arm.expression is not None:
+                yield from input_projections(arm.expression)
 
 
 ################################################################################

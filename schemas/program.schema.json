@@ -16,6 +16,7 @@
               "anonymous": "#/$defs/AnonymousTensor",
               "binary": "#/$defs/BinaryApp",
               "input": "#/$defs/InputTensor",
+              "occupancy": "#/$defs/Occupancy",
               "rank_value": "#/$defs/RankValue",
               "unary": "#/$defs/UnaryApp"
             },
@@ -36,6 +37,9 @@
             },
             {
               "$ref": "#/$defs/RankValue"
+            },
+            {
+              "$ref": "#/$defs/Occupancy"
             }
           ],
           "title": "Expression"
@@ -101,6 +105,7 @@
               "anonymous": "#/$defs/AnonymousTensor",
               "binary": "#/$defs/BinaryApp",
               "input": "#/$defs/InputTensor",
+              "occupancy": "#/$defs/Occupancy",
               "rank_value": "#/$defs/RankValue",
               "unary": "#/$defs/UnaryApp"
             },
@@ -121,6 +126,9 @@
             },
             {
               "$ref": "#/$defs/RankValue"
+            },
+            {
+              "$ref": "#/$defs/Occupancy"
             }
           ],
           "title": "Lhs"
@@ -131,6 +139,7 @@
               "anonymous": "#/$defs/AnonymousTensor",
               "binary": "#/$defs/BinaryApp",
               "input": "#/$defs/InputTensor",
+              "occupancy": "#/$defs/Occupancy",
               "rank_value": "#/$defs/RankValue",
               "unary": "#/$defs/UnaryApp"
             },
@@ -151,6 +160,9 @@
             },
             {
               "$ref": "#/$defs/RankValue"
+            },
+            {
+              "$ref": "#/$defs/Occupancy"
             }
           ],
           "title": "Rhs"
@@ -278,6 +290,171 @@
       "title": "BuiltinUnaryOp",
       "type": "object"
     },
+    "CaseArm": {
+      "additionalProperties": false,
+      "description": "One branch of a case statement.\n\nEDGE's selective computations: \"Each branch of a case statement is\nitself a valid EDGE expression, with its own modifier if needed. At each\npoint in the iteration space, [the statement] selects the appropriate\nsub-Einsum expression.\"\n\nSo an arm carries its own expression AND its own Map/Reduce specs (its\nbinary labels are a namespace of its own), plus the condition saying\nwhich region of the iteration space it covers:\n\n- ``where``: a predicate over rank variables (``n == j+1``). The region\n  is known before any tensor is read -- docs/cases.md, Pattern 1.\n- ``when``: a predicate over tensor values (``TopDown_i == True``),\n  read at each point -- docs/cases.md, Pattern 2. \"EDGE allows any\n  Boolean predicate as conditions for each case.\"\n- both: their conjunction (Pattern 3). Neither: ``otherwise``.\n\n``expression=None`` is the arm written ``empty``: the region is named,\nand nothing is written there.",
+      "properties": {
+        "expression": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "anonymous": "#/$defs/AnonymousTensor",
+                  "binary": "#/$defs/BinaryApp",
+                  "input": "#/$defs/InputTensor",
+                  "occupancy": "#/$defs/Occupancy",
+                  "rank_value": "#/$defs/RankValue",
+                  "unary": "#/$defs/UnaryApp"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/InputTensor"
+                },
+                {
+                  "$ref": "#/$defs/UnaryApp"
+                },
+                {
+                  "$ref": "#/$defs/BinaryApp"
+                },
+                {
+                  "$ref": "#/$defs/AnonymousTensor"
+                },
+                {
+                  "$ref": "#/$defs/RankValue"
+                },
+                {
+                  "$ref": "#/$defs/Occupancy"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expression"
+        },
+        "specs": {
+          "default": [],
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "map": "#/$defs/MapSpec",
+                "populate": "#/$defs/PopulateSpec",
+                "reduce": "#/$defs/ReduceSpec"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/MapSpec"
+              },
+              {
+                "$ref": "#/$defs/ReduceSpec"
+              },
+              {
+                "$ref": "#/$defs/PopulateSpec"
+              }
+            ]
+          },
+          "title": "Specs",
+          "type": "array"
+        },
+        "where": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "and": "#/$defs/LogicalAnd",
+                  "comparison": "#/$defs/PredicateComparison",
+                  "not": "#/$defs/LogicalNot",
+                  "or": "#/$defs/LogicalOr",
+                  "set_membership": "#/$defs/SetMembership"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/SetMembership"
+                },
+                {
+                  "$ref": "#/$defs/PredicateComparison"
+                },
+                {
+                  "$ref": "#/$defs/LogicalAnd"
+                },
+                {
+                  "$ref": "#/$defs/LogicalOr"
+                },
+                {
+                  "$ref": "#/$defs/LogicalNot"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Where"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "comparison": "#/$defs/Comparison",
+                  "diamond_boolean_app": "#/$defs/DiamondBooleanApp"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Comparison"
+                },
+                {
+                  "$ref": "#/$defs/DiamondBooleanApp"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        }
+      },
+      "title": "CaseArm",
+      "type": "object"
+    },
+    "Cases": {
+      "additionalProperties": false,
+      "description": "A case statement: different expressions for different regions of one\noutput tensor's iteration space, in ONE Einsum.\n\nPer the paper a case statement is syntactic sugar: each arm is an Einsum\ninto a temporary restricted to its region, and the temporaries are\ncombined with the update operator. Kept as a node (the \"middle path\" of\ndocs/cases.md) so the Einsum the author wrote stays one Einsum writing\nits output once, which is what single assignment asks for.\n\nOrder convention (docs/cases.md asks for one): arms are tested in the\norder written and a point belongs to the FIRST arm whose condition holds,\nso ``otherwise`` -- an arm with no condition -- is whatever no earlier arm\nclaimed.\n\nOnly valid as the whole right-hand side of an Einsum\n(``Einsum.expression``); it is deliberately not a member of the\n``Expression`` union, so it cannot be an operand.",
+      "properties": {
+        "kind": {
+          "const": "cases",
+          "default": "cases",
+          "title": "Kind",
+          "type": "string"
+        },
+        "arms": {
+          "items": {
+            "$ref": "#/$defs/CaseArm"
+          },
+          "minItems": 1,
+          "title": "Arms",
+          "type": "array"
+        }
+      },
+      "required": [
+        "arms"
+      ],
+      "title": "Cases",
+      "type": "object"
+    },
     "Comparison": {
       "additionalProperties": false,
       "description": "A comparison between two value expressions.\n\nThe comparison operator is from the closed set\n{==, !=, >, <, >=, <=}. The paper uses Unicode glyphs\n(the identity, not-equal, and inequality signs); the IR uses\nASCII. The lowering pass rewrites Unicode forms to ASCII.\n\nSemantics: when both sides are multi-element, the comparison holds\niff every point in the shared iteration space satisfies the\nelementwise predicate.",
@@ -353,6 +530,98 @@
       "title": "Comparison",
       "type": "object"
     },
+    "ConditionalArm": {
+      "additionalProperties": false,
+      "description": "One alternative of a conditional cascade: a condition and the Einsums\nthat run when it holds.\n\n``when`` is a predicate over tensor values, evaluated once, with the\nenclosing cascades' iterative ranks bound to the current generation,\nBEFORE any Einsum of the arm runs. ``None`` is ``otherwise``.\n\n``macro`` records which macro the arm's Einsums were expanded from\n(``edge_ir.ir.macro``), for tools that show the program; it has no\neffect on evaluation, because a macro is a lexical substitution.",
+      "properties": {
+        "when": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "comparison": "#/$defs/Comparison",
+                  "diamond_boolean_app": "#/$defs/DiamondBooleanApp"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Comparison"
+                },
+                {
+                  "$ref": "#/$defs/DiamondBooleanApp"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        },
+        "einsums": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Einsum"
+              },
+              {
+                "$ref": "#/$defs/ConditionalCascade"
+              },
+              {
+                "$ref": "#/$defs/NestedCascade"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Einsums",
+          "type": "array"
+        },
+        "macro": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Macro"
+        }
+      },
+      "required": [
+        "einsums"
+      ],
+      "title": "ConditionalArm",
+      "type": "object"
+    },
+    "ConditionalCascade": {
+      "additionalProperties": false,
+      "description": "A case statement over CASCADES: per generation, exactly one arm's\nEinsums run (none, if no condition holds).\n\nThis is what a multi-output case statement whose arms are cascade-form\nmacro invocations means once the macros are expanded:\n\n    (Tree_{i+1,s,d}, F_{i+1,d}, TopDown_{i+1}) =\n        { TOP-DOWN(...)   if TopDown_i == True\n        { BOTTOM-UP(...)  if TopDown_i == False\n\nArms are tested in the order written; the first whose condition holds\nruns. The arms usually write the same tensors, which is one write per\ngeneration, not two: only one arm runs.",
+      "properties": {
+        "kind": {
+          "const": "conditional",
+          "default": "conditional",
+          "title": "Kind",
+          "type": "string"
+        },
+        "arms": {
+          "items": {
+            "$ref": "#/$defs/ConditionalArm"
+          },
+          "minItems": 1,
+          "title": "Arms",
+          "type": "array"
+        }
+      },
+      "required": [
+        "arms"
+      ],
+      "title": "ConditionalCascade",
+      "type": "object"
+    },
     "CoordSetAlias": {
       "additionalProperties": false,
       "description": "Alias another tensor's rank coordinate set.\n\nUsed for declarations like D^G = S^G, which say \"rank D of the\ntensor being declared has the same coordinate set as rank S of\ntensor G.\"",
@@ -369,7 +638,7 @@
           "type": "string"
         },
         "rank": {
-          "pattern": "^[A-Z]+$",
+          "pattern": "^[A-Z]+(\\.[0-9]+)*$",
           "title": "Rank",
           "type": "string"
         }
@@ -577,7 +846,9 @@
             "mapping": {
               "anonymous": "#/$defs/AnonymousTensor",
               "binary": "#/$defs/BinaryApp",
+              "cases": "#/$defs/Cases",
               "input": "#/$defs/InputTensor",
+              "occupancy": "#/$defs/Occupancy",
               "rank_value": "#/$defs/RankValue",
               "unary": "#/$defs/UnaryApp"
             },
@@ -598,6 +869,12 @@
             },
             {
               "$ref": "#/$defs/RankValue"
+            },
+            {
+              "$ref": "#/$defs/Occupancy"
+            },
+            {
+              "$ref": "#/$defs/Cases"
             }
           ],
           "title": "Expression"
@@ -1005,7 +1282,17 @@
       "properties": {
         "einsums": {
           "items": {
-            "$ref": "#/$defs/Einsum"
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Einsum"
+              },
+              {
+                "$ref": "#/$defs/ConditionalCascade"
+              },
+              {
+                "$ref": "#/$defs/NestedCascade"
+              }
+            ]
           },
           "minItems": 1,
           "title": "Einsums",
@@ -1035,6 +1322,26 @@
         "einsums"
       ],
       "title": "NestedCascade",
+      "type": "object"
+    },
+    "Occupancy": {
+      "additionalProperties": false,
+      "description": "``||T||``: how many non-empty entries a tensor holds, as a VALUE.\n\nThe paper writes occupancy in stopping conditions (``<> : ||F_{i+1}|| == 0``)\nand the IR has carried it there as ``stopping.PropertyApp``. An Einsum\ncan need the same quantity mid-cascade -- exact cover's\n\n    Success_{i+1} = ||ActiveCol_{i+1}|| == 0\n\nasks it of the columns left to cover -- and without a node for it the\nEinsum has to be rewritten (an OR-reduction and a negation, through a\nnamed intermediate), which changes what the author wrote.\n\n``operand`` is usually a PARTIAL projection: ``ActiveCol_{i+1}`` names\nonly the generational rank of ``ActiveCol^{I,C}``, and the count is over\nthe ranks it leaves free. Those free ranks are counted, not iterated, so\nthey are not axes of the Einsum. The subscripts it does give are read at\nthe current point, exactly as a stopping condition reads its own.\n\nLike ``RankValue``, a count is always present: 0 is a value, not an\nabsence.",
+      "properties": {
+        "kind": {
+          "const": "occupancy",
+          "default": "occupancy",
+          "title": "Kind",
+          "type": "string"
+        },
+        "operand": {
+          "$ref": "#/$defs/TensorProjection"
+        }
+      },
+      "required": [
+        "operand"
+      ],
+      "title": "Occupancy",
       "type": "object"
     },
     "PopulateSpec": {
@@ -1373,7 +1680,7 @@
       "description": "One rank in a tensor declaration.\n\nA rank's coordinate space is described by the combination of\n`shape` and `coord_set`. Both are independently optional;\ntogether they specify what the iteration space for this rank\nlooks like.\n\n`shape` gives a cardinality hint when one is known up front:\nan integer literal (e.g., 5), or a string from the shape\nmini-DSL (e.g., \"|V|\"). May be None for unbounded or\ngenerational ranks where the cardinality emerges from\nexecution rather than being declared.\n\n`coord_set` gives an explicit coordinate set when needed:\nan enumeration (sparse subset, or non-integer labels), an\ninterval (explicit dense range), or an alias (defer to\nanother rank's coord set). When None, the rank uses the\ndefault dense integer coords [0, shape) implied by shape.",
       "properties": {
         "name": {
-          "pattern": "^[A-Z]+$",
+          "pattern": "^[A-Z]+(\\.[0-9]+)*$",
           "title": "Name",
           "type": "string"
         },

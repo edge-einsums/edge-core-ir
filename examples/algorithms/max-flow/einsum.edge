@@ -34,6 +34,7 @@ NST^{U = |V|}                   -> Boolean, empty = False
 ActR^{I, U = |V|, V = |V|}      -> Boolean, empty = False
 Lbl^{I, U = |V|, V = |V|}       -> Boolean, empty = False
 Adm^{I, U = |V|, V = |V|}       -> Boolean, empty = False
+AdmPost^{I, U = |V|, V = |V|}   -> Boolean, empty = False
 PushCand^{I, U = |V|, V = |V|}  -> Boolean, empty = False
 Delta^{I, U = |V|, V = |V|}     -> integer, empty = 0
 InPush^{I, U = |V|}             -> integer, empty = 0
@@ -68,7 +69,7 @@ R_{1, u, v} = cases:
 # E05: not a source/sink
 NST_u = not S_u . not T_u :: /\ AND(∩)
 # E06: active vertices: internal vertices with excess flow
-Act_{i, u} = NST_u .^1 (E_{i, u} .^2 0)_{i, u} :: /\^1 <-(∩) /\^2 >(∩)
+Act_{1, u} = NST_u .^1 (E_{1, u} .^2 0)_{1, u} :: /\^1 <-(∩) /\^2 >(∩)
 # E07: residual edges leaving an active vertex; saturated edges are empty,
 #      so the intersect skips them
 ActR_{i, u, v} = Act_{i, u} . R_{i, u, v} :: /\ <-(∩)
@@ -95,9 +96,9 @@ R_{i+1, u, v} = (R_{i, u, v} .^1 delta_{i, u, v})_{i, u, v} .^2 delta_{i, v, u} 
 
 # Relabel Step
 # E17: admissible edges after the push update
-Adm_{i+1, u, v} = R_{i+1, u, v} . Lbl_{i, u, v} :: /\ ->(∩)
+AdmPost_{i+1, u, v} = R_{i+1, u, v} . Lbl_{i, u, v} :: /\ ->(∩)
 # E18: whether each vertex can still push after the update
-HasAdm_{i+1, u} = Adm_{i+1, u, v} :: \/ OR(∪)
+HasAdm_{i+1, u} = AdmPost_{i+1, u, v} :: \/ OR(∪)
 # E19: active vertices, recomputed from the excess the push produced
 Act_{i+1, u} = NST_u .^1 (E_{i+1, u} .^2 0)_{i+1, u} :: /\^1 <-(∩) /\^2 >(∩)
 # E20: active vertices with no admissible edge will relabel

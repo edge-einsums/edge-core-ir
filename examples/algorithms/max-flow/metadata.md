@@ -47,7 +47,7 @@ for the diff against the previous version of this artifact.
 | `E03` | partial | E_{1,v} = F_{1,u,v} :: ⋁ +(∪) |
 | `E04` | partial | R_{1,u,v} = case {0 if u=s; C_{v,u} if v=s ∧ u≠s; C_{u,v} otherwise} |
 | `E05` | exact | NST_u = ¬S_u ⋅ ¬T_u :: ⋀ AND(∩) |
-| `E06` | exact | Act_{i,u} = NST_u ⋅^1 (E_{i,u} ⋅^2 0)_{i,u} :: ⋀^1 ←(∩) ⋀^2 >(∩) |
+| `E06` | exact | Act_{1,u} = NST_u ⋅^1 (E_{1,u} ⋅^2 0)_{1,u} :: ⋀^1 ←(∩) ⋀^2 >(∩) |
 | `E07` | exact | ActR_{i,u,v} = Act_{i,u} ⋅ R_{i,u,v} :: ⋀ ←(∩) |
 | `E08` | exact | Lbl_{i,u,v} = D_{i,u} ⋅ (D_{i,v} + 1)_{i,v} :: ⋀ ≡(∩) |
 | `E09` | exact | Adm_{i,u,v} = ActR_{i,u,v} ⋅ Lbl_{i,u,v} :: ⋀ AND(∩) |
@@ -58,8 +58,8 @@ for the diff against the previous version of this artifact.
 | `E14` | partial | OutPush_{i,u} = delta_{i,u,v} :: ⋁ +(∪) |
 | `E15` | exact | E_{i+1,u} = (E_{i,u} ⋅^1 InPush_{i,u})_{i,u} ⋅^2 OutPush_{i,u} :: ⋀^1 +(∪) ⋀^2 -(∪) |
 | `E16` | exact | R_{i+1,u,v} = (R_{i,u,v} ⋅^1 delta_{i,u,v})_{i,u,v} ⋅^2 delta_{i,v,u} :: ⋀^1 -(∪) ⋀^2 +(∪) |
-| `E17` | exact | Adm_{i+1,u,v} = R_{i+1,u,v} ⋅ Lbl_{i,u,v} :: ⋀ →(∩) |
-| `E18` | partial | HasAdm_{i+1,u} = Adm_{i+1,u,v} :: ⋁ OR(∪) |
+| `E17` | exact | AdmPost_{i+1,u,v} = R_{i+1,u,v} ⋅ Lbl_{i,u,v} :: ⋀ →(∩) |
+| `E18` | partial | HasAdm_{i+1,u} = AdmPost_{i+1,u,v} :: ⋁ OR(∪) |
 | `E19` | exact | Act_{i+1,u} = NST_u ⋅^1 (E_{i+1,u} ⋅^2 0)_{i+1,u} :: ⋀^1 ←(∩) ⋀^2 >(∩) |
 | `E20` | exact | Rel_{i+1,u} = Act_{i+1,u} ⋅ ¬HasAdm_{i+1,u} :: ⋀ AND(∩) |
 | `E21` | exact | NeiLbl_{i,u,v} = (R_{i+1,u,v} ⋅^1 Rel_{i+1,u})_{i,u,v} ⋅^2 D_{i,v} :: ⋀^1 ←(∩) ⋀^2 →(∩) |

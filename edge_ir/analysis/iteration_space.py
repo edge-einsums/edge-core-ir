@@ -49,6 +49,7 @@ from edge_ir.ir.expr import (
     BinaryApp,
     Expression,
     InputTensor,
+    Occupancy,
     RankArith,
     RankConstantLiteral,
     RankConstantShapeSym,
@@ -220,6 +221,17 @@ def _input_subscripts(expr: Expression) -> Iterator[RankExpression]:
         yield from _input_subscripts(expr.expression)
     elif isinstance(expr, RankValue):
         yield expr.expr
+    elif isinstance(expr, Occupancy):
+        # Only the subscripts it gives; the ranks it leaves free are counted
+        # over, not iterated.
+        yield from expr.operand.ranks
+    elif getattr(expr, "kind", None) == "cases":
+        # A case statement (local patch): the union over its arms. Each arm
+        # is evaluated over its own iteration space; this union is what a
+        # whole-Einsum consumer (fusion analysis) sees.
+        for arm in expr.arms:
+            if arm.expression is not None:
+                yield from _input_subscripts(arm.expression)
 
 
 def _contains_rank_function(node: RankExpression) -> bool:

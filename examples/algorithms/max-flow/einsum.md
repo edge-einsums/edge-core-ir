@@ -30,7 +30,7 @@ FS^{I, U, V},\ Delta^{I, U, V},\ InPush^{I, U},\ OutPush^{I, U}
 &\to \text{Integer},\ \text{empty} = 0 \\
 NeiLbl^{I, U, V},\ MinNeiLbl^{I, U},\ NewD^{I, U}
 &\to \text{Integer},\ \text{empty} = +\infty \\
-NST^{U},\ ActR^{I, U, V},\ Lbl^{I, U, V},\ Adm^{I, U, V},
+NST^{U},\ ActR^{I, U, V},\ Lbl^{I, U, V},\ Adm^{I, U, V},\ AdmPost^{I, U, V},
 PushCand^{I, U, V},\ HasAdm^{I, U},\ Rel^{I, U}
 &\to \text{Boolean},\ \text{empty} = \text{false} \\
 \\
@@ -59,9 +59,9 @@ C_{u,v} & otherwise
 \\
 NST_u &= \neg S_u \cdot \neg T_u :: \bigwedge AND(\cap)
 && \text{...not a source/sink} \\
-Act_{i,u} &= NST_u \cdot^1 (E_{i,u} \cdot^2 0)_{i,u}
+Act_{1,u} &= NST_u \cdot^1 (E_{1,u} \cdot^2 0)_{1,u}
 :: \bigwedge^1 \leftarrow(\cap)\ \bigwedge^2 >(\cap)
-&& \text{...active vertices: internal vertices with excess flow} \\
+&& \text{...active vertices, SEEDED for the first round only; later rounds read the relabel step's } Act_{i+1} \\
 ActR_{i,u,v} &= Act_{i,u} \cdot R_{i,u,v} :: \bigwedge \leftarrow(\cap)
 && \text{...residual edges leaving an active vertex; saturated edges are empty, so } \cap \text{ skips them} \\
 Lbl_{i,u,v} &= D_{i,u} \cdot (D_{i,v} + 1)_{i,v} :: \bigwedge \equiv(\cap)
@@ -90,9 +90,9 @@ R_{i+1,u,v} &= (R_{i,u,v} \cdot^1 delta_{i,u,v})_{i,u,v} \cdot^2 delta_{i,v,u}
 && \text{...subtract used residual capacity and add reverse residual capacity} \\
 \\
 \textbf{Relabel Step} \\
-Adm_{i+1,u,v} &= R_{i+1,u,v} \cdot Lbl_{i,u,v} :: \bigwedge \rightarrow(\cap)
+AdmPost_{i+1,u,v} &= R_{i+1,u,v} \cdot Lbl_{i,u,v} :: \bigwedge \rightarrow(\cap)
 && \text{...admissible edges after the push update} \\
-HasAdm_{i+1,u} &= Adm_{i+1,u,v} :: \bigvee OR(\cup)
+HasAdm_{i+1,u} &= AdmPost_{i+1,u,v} :: \bigvee OR(\cup)
 && \text{...whether each vertex can still push after the update} \\
 Act_{i+1,u} &= NST_u \cdot^1 (E_{i+1,u} \cdot^2 0)_{i+1,u}
 :: \bigwedge^1 \leftarrow(\cap)\ \bigwedge^2 >(\cap)

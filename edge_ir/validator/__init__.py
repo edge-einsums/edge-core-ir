@@ -14,10 +14,20 @@ from edge_ir.validator.single_assignment import (
     check_single_assignment,
     write_sites,
 )
+from edge_ir.validator.udf_names import (
+    UdfNameFinding,
+    UdfUse,
+    check_udf_names,
+    udf_uses,
+)
 
 __all__ = [
     "SingleAssignmentViolation",
     "WriteSite",
     "check_single_assignment",
     "write_sites",
+    "UdfNameFinding",
+    "UdfUse",
+    "check_udf_names",
+    "udf_uses",
 ]

@@ -36,12 +36,13 @@ from edge_ir.evaluator.errors import (
 )
 from edge_ir.evaluator.projection import PointMap, project
 from edge_ir.evaluator.spaces import Point, is_empty_value
-from edge_ir.ir.actions import ComputationSpec, MapSpec
+from edge_ir.ir.actions import ComputationSpec, MapSpec, ReduceSpec
 from edge_ir.ir.expr import (
     AnonymousTensor,
     BinaryApp,
     Expression,
     InputTensor,
+    Occupancy,
     RankValue,
     UnaryApp,
 )
@@ -150,16 +151,8 @@ def _reject_nested_reduction(
     that. Evaluating the inner expression pointwise and keeping the rank list
     unread would broadcast instead of contracting -- a wrong number, silently.
     """
-    from edge_ir.analysis.iteration_space import coord_image, operand_subscripts
-
-    declared: set[str] = set()
-    for rank in expr.ranks:
-        declared |= coord_image(rank).axes
-    mentioned: set[str] = set()
-    for subscript in operand_subscripts(expr.expression):
-        mentioned |= coord_image(subscript).axes
-
-    dropped = sorted((mentioned & set(axes)) - declared)
+    declared, mentioned, dropped_set = _anon_axes(expr, axes)
+    dropped = sorted(dropped_set)
     if dropped:
         raise UnsupportedConstructError(
             f"{where}: the anonymous tensor is written over "
@@ -219,6 +212,7 @@ def map_action(
     output_empty: Any,
     env: Environment,
     where: str,
+    nested: NestedReductions | None = None,
 ) -> MapResult:
     """Evaluate one Einsum's expression tree at one iteration-space point."""
     return _eval(
@@ -230,7 +224,160 @@ def map_action(
         output_empty=output_empty,
         env=env,
         where=where,
+        nested=nested,
     )
+
+
+################################################################################
+# Reductions inside parentheses
+################################################################################
+
+
+@dataclass
+class NestedReductions:
+    r"""Reductions written inside an anonymous tensor, and where to run them.
+
+    The EDGE paper's own example (Section 7.3.2, Eq. 143) folds BFS's gather
+    and filter into one Einsum:
+
+        F_{i+1,d} = (G_{s,d} .^1 F_{i,s})_{i,d} .^2 not P_{i,d}
+                    :: /\^1 +(^)  \/^1 ANY(u)  /\^2 <-(^)
+
+    The parenthesized part is written over (i, d), but its inner product
+    ranges over s too, and the Reduce on label 1 contracts s INSIDE the
+    parentheses -- before label 2 combines the result with P. Reducing at the
+    output instead is a different quantity whenever the outer operation does
+    not distribute over the reduction (``+`` with an operand that does not
+    depend on s would add it once per s).
+
+    ``by_anon`` maps an anonymous tensor (by identity) to the Reduce spec that
+    contracts it and the axes that spec removes. ``group`` holds every full
+    iteration-space point behind the outer point being evaluated, so the
+    fold can walk the dropped axes -- including any constraint the iteration
+    space imposes between them and the outer axes.
+    """
+
+    by_anon: dict[int, tuple[ReduceSpec, frozenset[str]]]
+    group: list[Point]
+
+    def for_anon(self, anon: AnonymousTensor):
+        return self.by_anon.get(id(anon))
+
+
+def _anon_axes(
+    expr: AnonymousTensor, axes: tuple[str, ...]
+) -> tuple[set[str], set[str], frozenset[str]]:
+    """(axes its rank list names, axes its inner expression mentions, axes it
+    drops) for one anonymous tensor."""
+    from edge_ir.analysis.iteration_space import coord_image, operand_subscripts
+
+    declared: set[str] = set()
+    for rank in expr.ranks:
+        declared |= coord_image(rank).axes
+    mentioned: set[str] = set()
+    for subscript in operand_subscripts(expr.expression):
+        mentioned |= coord_image(subscript).axes
+    return declared, mentioned, frozenset((mentioned & set(axes)) - declared)
+
+
+def _dropped_axes(expr: AnonymousTensor, axes: tuple[str, ...]) -> frozenset[str]:
+    return _anon_axes(expr, axes)[2]
+
+
+def _labels_in(expr: Expression) -> set[int]:
+    if isinstance(expr, BinaryApp):
+        return {expr.label} | _labels_in(expr.lhs) | _labels_in(expr.rhs)
+    if isinstance(expr, AnonymousTensor):
+        return _labels_in(expr.expression)
+    return set()
+
+
+def find_nested_reductions(
+    expression: Expression,
+    specs: list[ComputationSpec],
+    axes: tuple[str, ...],
+) -> dict[int, tuple[ReduceSpec, frozenset[str]]]:
+    """Every anonymous tensor that drops axes a Reduce spec inside it removes.
+
+    A Reduce spec belongs to an anonymous tensor when its label names a
+    binary inside the parentheses and its rank list is exactly the axes the
+    parentheses drop (or it gives no rank list). Anything else is left for the
+    Einsum-level Reduce, or refused, as before.
+    """
+    reduces = [s for s in specs if isinstance(s, ReduceSpec)]
+    found: dict[int, tuple[ReduceSpec, frozenset[str]]] = {}
+
+    def walk(node: Expression) -> None:
+        if isinstance(node, AnonymousTensor):
+            dropped = _dropped_axes(node, axes)
+            if dropped:
+                inside = _labels_in(node.expression)
+                for spec in reduces:
+                    ranks = frozenset(spec.rank_list or dropped)
+                    if spec.label in inside and ranks == dropped:
+                        found[id(node)] = (spec, dropped)
+                        break
+            walk(node.expression)
+        elif isinstance(node, BinaryApp):
+            walk(node.lhs)
+            walk(node.rhs)
+
+    walk(expression)
+    return found
+
+
+def _fold_nested(
+    expr: AnonymousTensor,
+    spec: ReduceSpec,
+    dropped: frozenset[str],
+    point: PointMap,
+    ordered_point: Point,
+    *,
+    axes: tuple[str, ...],
+    map_specs: dict[int, MapSpec],
+    output_empty: Any,
+    env: Environment,
+    where: str,
+    nested: NestedReductions,
+) -> MapResult:
+    """The anonymous tensor's value: its inner expression, reduced over
+    ``dropped`` by the Reduce action itself -- the same fold the Einsum-level
+    Reduce runs, applied to the points behind this one outer coordinate."""
+    from edge_ir.evaluator.actions.reduce import reduce_action
+
+    keep = [k for k, axis in enumerate(axes) if axis not in dropped]
+    key = tuple(ordered_point[k] for k in keep)
+    members = [full for full in nested.group if tuple(full[k] for k in keep) == key]
+    map_tmp: dict[Point, Any] = {}
+    for full in members:
+        bound = dict(point)
+        bound.update(zip(axes, full, strict=True))
+        inner = _eval(
+            expr.expression,
+            bound,
+            full,
+            axes=axes,
+            map_specs=map_specs,
+            output_empty=output_empty,
+            env=env,
+            where=where,
+            nested=nested,
+        )
+        if inner.present:
+            map_tmp[full] = inner.value
+    red = reduce_action(
+        spec,
+        points=members,
+        axes=axes,
+        output_coords=dict.fromkeys(members, key),
+        map_tmp=map_tmp,
+        output_empty=output_empty,
+        env=env,
+        where=f"{where} (reduce {spec.label})",
+    )
+    if key in red.values:
+        return MapResult(value=red.values[key], present=True, empty=output_empty)
+    return MapResult(value=output_empty, present=False, empty=output_empty)
 
 
 def _eval(
@@ -243,6 +390,7 @@ def _eval(
     output_empty: Any,
     env: Environment,
     where: str,
+    nested: NestedReductions | None = None,
 ) -> MapResult:
     if isinstance(expr, InputTensor):
         name = expr.proj.tensor
@@ -280,6 +428,7 @@ def _eval(
             output_empty=output_empty,
             env=env,
             where=where,
+            nested=nested,
         )
         merge = expr.merge_op or _derived_unary_merge(expr.op, env=env, where=where)
         guard = merge_decides(merge, operand.present, True, where=f"{where} (unary)")
@@ -311,6 +460,7 @@ def _eval(
             output_empty=output_empty,
             env=env,
             where=where,
+            nested=nested,
         )
         right = _eval(
             expr.rhs,
@@ -321,6 +471,7 @@ def _eval(
             output_empty=output_empty,
             env=env,
             where=where,
+            nested=nested,
         )
         guard = merge_decides(
             spec.merge_op,
@@ -370,6 +521,16 @@ def _eval(
         )
         return MapResult(value=value, present=True, empty=None)
 
+    if isinstance(expr, Occupancy):
+        # ||T||: the non-empty count of the fiber the projection names, its
+        # given subscripts read at this point. The same slice a stopping
+        # condition's occupancy counts, so the two cannot mean different
+        # things. Always present: a count of 0 is a value.
+        from edge_ir.evaluator.stopping import _slice_of
+
+        count = len(_slice_of(expr.operand, dict(point), env=env))
+        return MapResult(value=count, present=True, empty=None)
+
     if isinstance(expr, AnonymousTensor):
         # An anonymous tensor gives an inner expression an output shape. Its
         # binaries' specs live on the enclosing Einsum (a flat label
@@ -380,6 +541,22 @@ def _eval(
         # level, and this evaluator does not implement nested reduction. It
         # says so rather than broadcasting, which would silently return a
         # number that is not the one the Einsum asks for.
+        found = nested.for_anon(expr) if nested is not None else None
+        if found is not None:
+            spec, dropped = found
+            return _fold_nested(
+                expr,
+                spec,
+                dropped,
+                point,
+                ordered_point,
+                axes=axes,
+                map_specs=map_specs,
+                output_empty=output_empty,
+                env=env,
+                where=where,
+                nested=nested,
+            )
         _reject_nested_reduction(expr, axes=axes, where=where)
         inner = _eval(
             expr.expression,
@@ -390,6 +567,7 @@ def _eval(
             output_empty=output_empty,
             env=env,
             where=where,
+            nested=nested,
         )
         return inner
 

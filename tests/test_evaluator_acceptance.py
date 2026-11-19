@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from edge_ir.evaluator import check_order_independence, evaluate
+from edge_ir.evaluator.order import SequentialSchedule, ShuffledSchedule
 
 ROOT = Path(__file__).resolve().parents[1]
 for algorithm in ("bfs", "bellman-ford", "dfs", "max-flow"):
@@ -475,11 +476,27 @@ def test_max_flow_source_row_of_R_keeps_its_capacity() -> None:
     assert _generation(result, "R", 1)[(0, 1)] == 2
 
 
-def test_max_flow_is_order_independent() -> None:
+def test_max_flow_reaches_the_same_answer_under_any_order() -> None:
     """Vertex 1 has three admissible edges at once, so E10 must choose.
 
-    ``select-one-admissible-v`` keeps the smallest admissible v, which does
-    not depend on the order Populate visits the candidates in.
+    WHAT ORDER-INDEPENDENCE MEANS FOR A PROGRAM WITH A FREE CHOICE
+    --------------------------------------------------------------
+    This used to call ``check_order_independence``, which requires every
+    tensor to come out byte-identical under every traversal order. It passed
+    only because ``pick-admissible-edge`` was aliased to ``select-min-coord``
+    -- a lowest-coordinate rule that made the choice deterministic.
+
+    But the specification is the authority, and it leaves the choice free:
+    ``einsum.md`` writes ``1(pick-admissible-edge)`` with no ranking, and
+    ``pseudocode.md`` says "choose ONE such v". Pinning it to a rule bought
+    byte-identical snapshots at the price of the IR claiming a tie-break the
+    algorithm does not have -- and of sampling the legal executions with a
+    bias, so a bug that appears on only some choices would never appear.
+
+    Aliased to ``select-any``, the ROUTE varies with traversal order. The
+    ANSWER must not, and that is the real invariant: push-relabel reaches the
+    maximum flow whichever admissible edge it picks each time. So this
+    asserts the flow value under every order, not the snapshot.
     """
     n = 6
     capacity = {
@@ -492,12 +509,24 @@ def test_max_flow_is_order_independent() -> None:
         (3, 5): 2,
         (4, 5): 2,
     }
-    agreed, differences = check_order_independence(
-        build_max_flow(),
-        seeds=(1, 2, 3, 5, 8, 13, 21),
-        inputs=_max_flow_inputs(n, capacity),
-        shape_env={"|V|": n},
-        functions=max_flow_registry(),
-        max_iterations=50 * n * n,
-    )
-    assert agreed, differences
+    expected = _reference_max_flow(n, capacity, 0, n - 1)
+
+    def flow_under(schedule) -> int:
+        result = evaluate(
+            build_max_flow(),
+            inputs=_max_flow_inputs(n, capacity),
+            shape_env={"|V|": n},
+            functions=max_flow_registry(),
+            max_iterations=50 * n * n,
+            schedule=schedule,
+        )
+        excess = dict(result["E"].items())
+        last = max(coord[0] for coord in excess)
+        return excess.get((last, n - 1), 0)
+
+    assert flow_under(SequentialSchedule()) == expected, "in-order run"
+    for seed in (1, 2, 3, 5, 8, 13, 21):
+        got = flow_under(ShuffledSchedule(seed=seed))
+        assert got == expected, (
+            f"seed {seed} reached {got}, not the maximum flow {expected}"
+        )

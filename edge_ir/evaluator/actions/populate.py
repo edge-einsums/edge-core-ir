@@ -35,6 +35,7 @@ the assignment sidebar is recorded as an open question.
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, field
 from typing import Any
 
 from edge_ir.evaluator.actions.map import apply_compute
@@ -51,6 +52,51 @@ from edge_ir.ir.actions import PopulateSpec
 from edge_ir.udf.categories import UdfCategory
 
 
+@dataclass
+class PopulateRound:
+    """What one round of Populate did, for a reader of the trace.
+
+    A round (Inset 4) is one iteration-space point at which Populate runs:
+    one incoming Reduce Temporary element, one mutable fiber. Recorded only
+    when a caller asks (``rounds=`` on :func:`populate_action`); nothing here
+    is read back by the evaluator.
+    """
+
+    point: Point
+    """The iteration-space point (the RedTmp element's witness), on ``axes``."""
+
+    axes: tuple[str, ...]
+    output_coord: Point
+    """``cs^R`` -- the coordinate carried by the incoming RedTmp element."""
+
+    value: Any
+    """``dv_r`` -- the value carried by the incoming RedTmp element."""
+
+    fiber_key: Point
+    mutable_positions: tuple[int, ...]
+    locations: tuple[Point, ...]
+    """``Loc`` -- every location of the mutable fiber, occupied or not."""
+
+    pre_state: dict[Point, Any]
+    """``S`` -- the fiber's occupied locations and values before the round."""
+
+    write_del: list[tuple[Point, str]] = field(default_factory=list)
+    """The Coordinate operator's write-del set, as returned."""
+
+    deletes: list[Point] = field(default_factory=list)
+    """``D`` -- the delete set."""
+
+    writes: dict[Point, Any] = field(default_factory=dict)
+    """``W`` -- the write set, with the value Compute produced for each."""
+
+    post_state: dict[Point, Any] = field(default_factory=dict)
+    """The fiber's occupied locations and values after the round."""
+
+    constraint_checked: bool = False
+    """True once ``W and (dom(S) or D) = {}`` was checked against
+    ``pre_state`` and held (a violation raises instead)."""
+
+
 def populate_action(
     spec: PopulateSpec | None,
     *,
@@ -61,8 +107,13 @@ def populate_action(
     mutable: tuple[int, ...],
     env: Environment,
     where: str,
+    rounds: list[PopulateRound] | None = None,
 ) -> None:
     """Update ``output`` in place from the reduction temporary.
+
+    ``rounds``, when a list is given, receives one :class:`PopulateRound`
+    per RedTmp element processed on the mutable-fiber path, in the order
+    processed. It is a recording only and changes nothing that is computed.
 
     ``order`` is the sequence of output coordinates to process, already put
     in traversal order by the schedule. Populate is a fold -- each
@@ -95,10 +146,32 @@ def populate_action(
             output_empty=output.empty_value,
         )
         write_del = coord_impl.call(fiber, cs_z, dv_r, ctx=ctx)
+        record: PopulateRound | None = None
+        if rounds is not None:
+            write_del = list(write_del)
+            record = PopulateRound(
+                point=tuple(witness),
+                axes=tuple(axes),
+                output_coord=tuple(cs_z),
+                value=dv_r,
+                fiber_key=tuple(fiber_key),
+                mutable_positions=tuple(mutable),
+                locations=tuple(entry.coord for entry in fiber),
+                pre_state={e.coord: e.value for e in fiber if e.present},
+            )
+            rounds.append(record)
         deletes, writes = _partition(write_del, where=where)
+        if record is not None:
+            record.write_del = [
+                (tuple(coord), PopulateAction(action).value)
+                for coord, action in write_del
+            ]
+            record.deletes = list(deletes)
         _check_constraints(
             writes=writes, deletes=deletes, pre_state=pre_state, where=where
         )
+        if record is not None:
+            record.constraint_checked = True
 
         for coord in deletes:
             output.delete(coord)
@@ -113,6 +186,14 @@ def populate_action(
                 where=where,
             )
             output.write(coord, value)
+            if record is not None:
+                record.writes[coord] = value
+        if record is not None:
+            record.post_state = {
+                e.coord: e.value
+                for e in output.enum_fiber(fiber_key, mutable)
+                if e.present
+            }
 
 
 def _assign(

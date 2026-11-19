@@ -138,6 +138,10 @@ def reduce_action(
         spec.compute_op, env=env, output_empty=output_empty, where=where
     )
     state: dict[Point, Any] = {}
+    # Output coordinates with at least one present Map value. The identity
+    # only seeds the fold; a fiber with nothing in it reduces to empty, not
+    # to the identity (which for max/min is -inf/inf, never the empty value).
+    folded: set[Point] = set()
 
     for point in points:
         cs_z = output_coords[point]
@@ -146,6 +150,8 @@ def reduce_action(
         b_s = not is_empty_value(dv_s, output_empty)
         b_m = point in map_tmp
         dv = map_tmp[point] if b_m else output_empty
+        if b_m:
+            folded.add(cs_z)
 
         guard = merge_decides(spec.merge_op, b_s, b_m, where=where)
         if guard:
@@ -173,7 +179,7 @@ def reduce_action(
             red.witness[cs_z] = point
 
     for cs_z, value in state.items():
-        if not is_empty_value(value, output_empty):
+        if cs_z in folded and not is_empty_value(value, output_empty):
             red.values[cs_z] = value
             red.witness.setdefault(cs_z, ())
     return red

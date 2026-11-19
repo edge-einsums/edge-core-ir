@@ -558,12 +558,14 @@ def test_writing_outside_the_coordinate_space_raises() -> None:
 
 
 def test_an_anonymous_tensor_that_contracts_an_axis_raises() -> None:
-    """``(A_{m,k} . X_k)_m`` reduces ``k`` INSIDE the parentheses.
+    """``(A_{m,k} . X_k)_m`` contracts ``k`` inside the parentheses, and NO
+    Reduce spec says how.
 
-    This evaluator applies an Einsum's Reduce spec at the output coordinate,
-    not at a nested level. Evaluating the inner expression pointwise and
-    leaving the rank list unread would broadcast instead of contracting, which
-    computes a different quantity and says nothing about it.
+    A contraction inside parentheses is evaluated when a Reduce spec on a
+    label inside them names the dropped axes (paper Eq. 143; see
+    tests/test_nested_reduction.py). Without one there is no rule for
+    combining the values, and evaluating the inner expression pointwise would
+    broadcast instead of contracting -- a different quantity, silently.
     """
     from edge_ir.evaluator import UnsupportedConstructError
     from edge_ir.ir.expr import AnonymousTensor

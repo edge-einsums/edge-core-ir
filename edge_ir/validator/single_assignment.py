@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from edge_ir.ir.einsum import Einsum
+from edge_ir.ir.einsum import ConditionalCascade, Einsum
 from edge_ir.ir.expr import (
     RankArith,
     RankConstantLiteral,
@@ -128,6 +128,15 @@ class WriteSite:
     path: str
     tensor: str
     ranks: tuple[_RankKey, ...]
+    arms: tuple[tuple[int, int], ...] = ()
+    """The conditional-cascade arms this Einsum sits in, outermost first, as
+    (conditional number, arm number). Two Einsums in DIFFERENT arms of the
+    same conditional cascade never both run in a generation, so they are not
+    two writes (local patch, edge-workbench issue 9)."""
+
+    def exclusive_with(self, other: WriteSite) -> bool:
+        mine = dict(self.arms)
+        return any(c in mine and mine[c] != a for c, a in other.arms)
 
     def slice_text(self) -> str:
         return f"{self.tensor}[{', '.join(k.text() for k in self.ranks)}]"
@@ -168,19 +177,37 @@ def write_sites(program: Program) -> list[WriteSite]:
     """Every Einsum that writes, in initialization order then cascade order."""
     sites: list[WriteSite] = []
 
-    def add(path: str, einsum: Einsum) -> None:
+    def add(path: str, einsum: Einsum, arms: tuple = ()) -> None:
         sites.append(
             WriteSite(
                 path=path,
                 tensor=einsum.output_tensor,
                 ranks=tuple(_key(r) for r in einsum.output_ranks),
+                arms=arms,
             )
         )
 
     for index, einsum in enumerate(program.initialization.einsums):
         add(f"initialization[{index}]", einsum)
-    for index, einsum in enumerate(program.main_edge.cascade.einsums):
-        add(f"cascade[{index}]", einsum)
+
+    # The cascade is a tree (conditional cascades, inner cascades). Sites are
+    # numbered as `edge_ir.ir.einsum.flatten` numbers them.
+    counter = [0, 0]  # next Einsum index, next conditional number
+
+    def walk(entries, arms: tuple) -> None:
+        for entry in entries:
+            if isinstance(entry, Einsum):
+                add(f"cascade[{counter[0]}]", entry, arms)
+                counter[0] += 1
+            elif isinstance(entry, ConditionalCascade):
+                number = counter[1]
+                counter[1] += 1
+                for k, arm in enumerate(entry.arms):
+                    walk(arm.einsums, arms + ((number, k),))
+            else:
+                walk(entry.einsums, arms)
+
+    walk(program.main_edge.cascade.einsums, ())
     return sites
 
 
@@ -197,6 +224,8 @@ def check_single_assignment(program: Program) -> list[SingleAssignmentViolation]
             if first.tensor != second.tensor:
                 continue
             if len(first.ranks) != len(second.ranks):
+                continue
+            if first.exclusive_with(second):
                 continue
             pairs = zip(first.ranks, second.ranks, strict=True)
             if all(_can_meet(a, b, iteration) for a, b in pairs):

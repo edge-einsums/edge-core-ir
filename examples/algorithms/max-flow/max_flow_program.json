@@ -1230,8 +1230,8 @@
           "output_tensor": "Act",
           "output_ranks": [
             {
-              "kind": "var",
-              "name": "i"
+              "kind": "literal",
+              "value": 1
             },
             {
               "kind": "var",
@@ -1264,8 +1264,8 @@
                     "tensor": "E",
                     "ranks": [
                       {
-                        "kind": "var",
-                        "name": "i"
+                        "kind": "literal",
+                        "value": 1
                       },
                       {
                         "kind": "var",
@@ -1284,8 +1284,8 @@
               },
               "ranks": [
                 {
-                  "kind": "var",
-                  "name": "i"
+                  "kind": "literal",
+                  "value": 1
                 },
                 {
                   "kind": "var",
@@ -1649,10 +1649,10 @@
               ],
               "compute_op": {
                 "kind": "user_defined",
-                "name": "pick-admissible-edge"
+                "name": "identity"
               },
               "coord_op": {
-                "name": "select-one-admissible-v"
+                "name": "pick-admissible-edge"
               }
             }
           ],
